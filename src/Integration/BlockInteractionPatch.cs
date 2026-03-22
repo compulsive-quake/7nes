@@ -11,23 +11,31 @@ namespace SevenNes.Integration
     {
         static bool Prefix(string _commandName, WorldBase _world, int _cIdx, Vector3i _blockPos, BlockValue _blockValue, EntityPlayerLocal _player)
         {
-            // Check if the activated block is our NES TV
             Block block = _blockValue.Block;
-            if (block == null) return true;
+            if (block == null || block.GetBlockName() != "nesTV") return true;
 
-            if (block.GetBlockName() == "nesTV")
+            var window = NesEmulatorWindow.Instance;
+
+            switch (_commandName)
             {
-                // Open the NES emulator window
-                NesEmulatorWindow.Instance.Open();
-                return false; // Don't run the original method
+                case "play":
+                    window.HandleActivate(_blockPos, _blockValue.rotation);
+                    return false;
+                case "choose_game":
+                    window.HandleChooseGame(_blockPos, _blockValue.rotation);
+                    return false;
+                case "turn_on":
+                    window.HandleTurnOn(_blockPos, _blockValue.rotation);
+                    return false;
+                case "turn_off":
+                    window.HandleTurnOff(_blockPos, _blockValue.rotation);
+                    return false;
+                default:
+                    return true; // Let game handle "take" etc.
             }
-
-            return true; // Run original for other blocks
         }
     }
 
-    // Also patch GameManager.ChangeBlocks or similar if needed for custom block class
-    // Alternative approach: patch the general interaction handler
     [HarmonyPatch(typeof(Block))]
     [HarmonyPatch("GetActivationText")]
     public class BlockActivationTextPatch
@@ -36,14 +44,13 @@ namespace SevenNes.Integration
         {
             if (__instance.GetBlockName() == "nesTV")
             {
-                __result = "Press <E> to play NES";
+                __result = "Press [action:activate] to use NES TV";
                 return false;
             }
             return true;
         }
     }
 
-    // Ensure HasBlockActivationCommands returns true for our block
     [HarmonyPatch(typeof(Block))]
     [HarmonyPatch("HasBlockActivationCommands")]
     public class BlockHasActivationPatch
@@ -59,22 +66,26 @@ namespace SevenNes.Integration
         }
     }
 
-    // Return our custom activation command
     [HarmonyPatch(typeof(Block))]
     [HarmonyPatch("GetBlockActivationCommands")]
     public class BlockGetActivationCommandsPatch
     {
         static bool Prefix(Block __instance, ref BlockActivationCommand[] __result, WorldBase _world, BlockValue _blockValue, int _clrIdx, Vector3i _blockPos, EntityAlive _entityFocusing)
         {
-            if (__instance.GetBlockName() == "nesTV")
+            if (__instance.GetBlockName() != "nesTV") return true;
+
+            var window = NesEmulatorWindow.Instance;
+            bool tvOn = window.IsTvOn;
+            bool hasRom = window.HasLoadedRom;
+
+            __result = new BlockActivationCommand[]
             {
-                __result = new BlockActivationCommand[]
-                {
-                    new BlockActivationCommand("play", "electric_switch", true)
-                };
-                return false;
-            }
-            return true;
+                new BlockActivationCommand("play", "electric_switch", true),
+                new BlockActivationCommand("choose_game", "server_search", true),
+                new BlockActivationCommand(tvOn ? "turn_off" : "turn_on", "electric_switch", tvOn || hasRom),
+                new BlockActivationCommand("take", "hand", true)
+            };
+            return false;
         }
     }
 }

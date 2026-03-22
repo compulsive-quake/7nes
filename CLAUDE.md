@@ -85,8 +85,8 @@ Place `.nes` ROM files in the `Mods/7nes/Roms/` folder. The emulator will detect
 | Key        | NES Button |
 |------------|------------|
 | Arrow Keys | D-pad      |
-| Z          | A          |
-| X          | B          |
+| A          | A          |
+| D          | B          |
 | Enter      | Start      |
 | Right Shift| Select     |
 | Escape     | Close emulator |

@@ -14,11 +14,13 @@ namespace SevenNes.Integration
         private Nes _nes;
         private Texture2D _screenTexture;
         private bool _isRunning;
+        private bool _hasLoadedRom;
         private string[] _romFiles;
         private int _currentRomIndex;
         private Color32[] _colorBuffer;
 
         public bool IsRunning => _isRunning;
+        public bool HasLoadedRom => _hasLoadedRom;
         public Texture2D ScreenTexture => _screenTexture;
         public string CurrentRomName => _nes?.CurrentRomName ?? "No ROM";
 
@@ -54,6 +56,7 @@ namespace SevenNes.Integration
                 _currentRomIndex = index;
                 _nes.LoadRom(_romFiles[index]);
                 _isRunning = true;
+                _hasLoadedRom = true;
                 Log.Out($"[7nes] Loaded ROM: {Path.GetFileNameWithoutExtension(_romFiles[index])}");
                 return true;
             }
@@ -98,6 +101,16 @@ namespace SevenNes.Integration
         public void Stop()
         {
             _isRunning = false;
+        }
+
+        public bool Resume()
+        {
+            if (_hasLoadedRom)
+            {
+                _isRunning = true;
+                return true;
+            }
+            return false;
         }
 
         public void Reset()

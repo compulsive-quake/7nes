@@ -5,7 +5,8 @@
       "Bash(find /c/Users/Richard/WebstormProjects/pixelpaste -type f -name *fix-errors*)",
       "Bash(powershell -ExecutionPolicy Bypass -File deploy.ps1)",
       "Bash(ls -la \"C:\\\\Users\\\\Richard\\\\.claude\\\\skills\\\\fix-errors\"\" 2>/dev/null || echo \"Directory listing failed \")",
-      "Bash(gh auth:*)"
+      "Bash(gh auth:*)",
+      "Bash(find c:/Users/Richard/WebstormProjects/7KB -type f -name *.md)"
     ]
   }
 }
