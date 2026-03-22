@@ -1,0 +1,7 @@
+bin/
+obj/
+*.dll
+*.pdb
+*.user
+.vs/
+Roms/

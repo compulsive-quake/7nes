@@ -1,0 +1,10 @@
+<configs>
+    <append xpath="/windows">
+        <window name="nesEmulator" width="960" height="540" pos="center,center" panel_fill_color="0,0,0,255" controller="NesScreenController" cursor_area="true" open_sound="" close_sound="">
+            <rect name="emulatorFrame" pos="0,0" width="960" height="540">
+                <texture name="nesScreen" width="768" height="720" pos="96,0" depth="1" />
+                <label name="romName" pos="0,500" width="960" height="30" font_size="18" color="255,255,255,200" justify="center" text="" depth="2" />
+            </rect>
+        </window>
+    </append>
+</configs>

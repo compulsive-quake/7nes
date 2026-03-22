@@ -1,0 +1,13 @@
+<configs>
+    <append xpath="/blocks">
+        <block name="nesTV">
+            <property name="CreativeMode" value="Player"/>
+            <property name="Class" value="Block"/>
+            <property name="CustomIcon" value="tvScreen"/>
+            <property name="Extends" value="tvSmallStand1x1"/>
+            <property name="DisplayInfo" value="Name"/>
+            <property name="DescriptionKey" value="nesTV_desc"/>
+            <property name="ActivationText" value="nesTV_activate"/>
+        </block>
+    </append>
+</configs>

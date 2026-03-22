@@ -1,0 +1,42 @@
+# Deploy the 7nes mod to 7 Days To Die Mods folder
+$ErrorActionPreference = "Stop"
+
+$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$GamePath = "D:\SteamLibrary\steamapps\common\7 Days To Die"
+$ModDest = Join-Path $GamePath "Mods\7nes"
+
+Write-Host "=== 7nes Deploy ==="
+
+# Always rebuild to ensure latest source is deployed
+Write-Host "Building..."
+Push-Location "$ScriptDir\src"
+& dotnet build --nologo -v q
+if ($LASTEXITCODE -ne 0) { Pop-Location; throw "Build failed" }
+Pop-Location
+
+# Create mod destination
+New-Item -ItemType Directory -Path "$ModDest\Config" -Force | Out-Null
+New-Item -ItemType Directory -Path "$ModDest\Roms" -Force | Out-Null
+
+# Copy mod files
+Write-Host "Deploying to: $ModDest"
+
+Copy-Item "$ScriptDir\ModInfo.xml" "$ModDest\" -Force
+Copy-Item "$ScriptDir\7nes.dll" "$ModDest\" -Force
+Copy-Item "$ScriptDir\Config\blocks.xml" "$ModDest\Config\" -Force
+Copy-Item "$ScriptDir\Config\windows.xml" "$ModDest\Config\" -Force
+Copy-Item "$ScriptDir\Config\localization.txt" "$ModDest\Config\" -Force
+
+# Copy ROMs if any exist in source
+$RomsDir = Join-Path $ScriptDir "Roms"
+if ((Test-Path $RomsDir) -and (Get-ChildItem "$RomsDir\*.nes" -ErrorAction SilentlyContinue)) {
+    Write-Host "Copying ROMs..."
+    Copy-Item "$RomsDir\*.nes" "$ModDest\Roms\" -Force
+}
+
+Write-Host ""
+Write-Host "Deployed successfully!" -ForegroundColor Green
+Write-Host "  Mod location: $ModDest"
+Write-Host "  ROM folder:   $ModDest\Roms\"
+Write-Host ""
+Write-Host "Place .nes ROM files in the Roms folder, then launch the game."

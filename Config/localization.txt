@@ -1,0 +1,4 @@
+Key,File,Type,UsedInMainMenu,NoTranslate,english
+nesTV,blocks,Block,FALSE,FALSE,NES TV
+nesTV_desc,blocks,Block,FALSE,FALSE,A TV with a built-in NES emulator. Press E to play!
+nesTV_activate,blocks,Block,FALSE,FALSE,Play NES
