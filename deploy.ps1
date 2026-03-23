@@ -27,6 +27,14 @@ Copy-Item "$ScriptDir\Config\blocks.xml" "$ModDest\Config\" -Force
 Copy-Item "$ScriptDir\Config\windows.xml" "$ModDest\Config\" -Force
 Copy-Item "$ScriptDir\Config\localization.txt" "$ModDest\Config\" -Force
 
+# Copy Resources (asset bundles) if present
+$ResourcesDir = Join-Path $ScriptDir "Resources"
+if (Test-Path $ResourcesDir) {
+    New-Item -ItemType Directory -Path "$ModDest\Resources" -Force | Out-Null
+    Copy-Item "$ResourcesDir\nesmodel.unity3d" "$ModDest\Resources\" -Force -ErrorAction SilentlyContinue
+    Write-Host "Copied asset bundles."
+}
+
 # Copy UIAtlases if present
 $UIAtlasDir = Join-Path $ScriptDir "UIAtlases"
 if (Test-Path $UIAtlasDir) {

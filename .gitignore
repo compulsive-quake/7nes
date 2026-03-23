@@ -5,3 +5,9 @@ obj/
 *.user
 .vs/
 Roms/
+UnityProject/Library/
+UnityProject/Temp/
+UnityProject/Logs/
+UnityProject/UserSettings/
+UnityProject/Assets/NESModel/Textures/
+UnityProject/Resources/
