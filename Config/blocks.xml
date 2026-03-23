@@ -3,7 +3,7 @@
         <block name="nesTV">
             <property name="CreativeMode" value="Player"/>
             <property name="Class" value="Block"/>
-            <property name="CustomIcon" value="tvScreen"/>
+            <property name="CustomIcon" value="nesTV"/>
             <property name="Extends" value="tvSmallStand1x1"/>
             <property name="DisplayInfo" value="Name"/>
             <property name="DescriptionKey" value="nesTV_desc"/>
