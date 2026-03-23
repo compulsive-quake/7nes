@@ -72,8 +72,8 @@ namespace SevenNes.Integration
                 string cleanName = SecurityElement.Escape(GetCleanName(romFile));
 
                 sb.AppendLine($"\t\t<item name=\"{itemName}\">");
-                sb.AppendLine($"\t\t\t<property name=\"Meshfile\" value=\"Items/Misc/oilGP\"/>");
-                sb.AppendLine($"\t\t\t<property name=\"DropMeshfile\" value=\"Items/Misc/sacPT\"/>");
+                sb.AppendLine($"\t\t\t<property name=\"Meshfile\" value=\"#@modfolder:Resources/nescartridge.unity3d?Assets/NESCartridge/NESCartridgePrefab.prefab\"/>");
+                sb.AppendLine($"\t\t\t<property name=\"DropMeshfile\" value=\"#@modfolder:Resources/nescartridge.unity3d?Assets/NESCartridge/NESCartridgePrefab.prefab\"/>");
                 sb.AppendLine($"\t\t\t<property name=\"CustomIcon\" value=\"{itemName}\"/>");
                 sb.AppendLine($"\t\t\t<property name=\"CustomIconTint\" value=\"255,255,255\"/>");
                 sb.AppendLine($"\t\t\t<property name=\"Stacknumber\" value=\"1\"/>");
@@ -81,6 +81,7 @@ namespace SevenNes.Integration
                 sb.AppendLine($"\t\t\t<property name=\"Group\" value=\"Decor/Miscellaneous\"/>");
                 sb.AppendLine($"\t\t\t<property name=\"DescriptionKey\" value=\"{itemName}_desc\"/>");
                 sb.AppendLine($"\t\t\t<property name=\"Material\" value=\"Mplastics\"/>");
+                sb.AppendLine($"\t\t\t<property name=\"HoldType\" value=\"45\"/>");
                 sb.AppendLine($"\t\t</item>");
             }
 

@@ -11,9 +11,11 @@ public class BuildAssetBundle
         if (!Directory.Exists(outputPath))
             Directory.CreateDirectory(outputPath);
 
-        var builds = new AssetBundleBuild[1];
+        var builds = new AssetBundleBuild[2];
         builds[0].assetBundleName = "nesmodel.unity3d";
         builds[0].assetNames = new string[] { "Assets/NESModel/NESConsolePrefab.prefab" };
+        builds[1].assetBundleName = "nescartridge.unity3d";
+        builds[1].assetNames = new string[] { "Assets/NESCartridge/NESCartridgePrefab.prefab" };
 
         BuildPipeline.BuildAssetBundles(outputPath, builds,
             BuildAssetBundleOptions.None, BuildTarget.StandaloneWindows64);
@@ -29,6 +31,14 @@ public class BuildAssetBundle
         {
             File.Copy(srcBundle, dstBundle, true);
             Debug.Log($"Asset bundle copied to: {dstBundle}");
+        }
+
+        string srcCartridge = Path.Combine(outputPath, "nescartridge.unity3d");
+        string dstCartridge = Path.Combine(modResourcesPath, "nescartridge.unity3d");
+        if (File.Exists(srcCartridge))
+        {
+            File.Copy(srcCartridge, dstCartridge, true);
+            Debug.Log($"Cartridge asset bundle copied to: {dstCartridge}");
         }
 
         Debug.Log("7nes asset bundle build complete!");
