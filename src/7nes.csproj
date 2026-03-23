@@ -48,6 +48,14 @@
       <HintPath>$(SevenDaysToDiePath)\7DaysToDie_Data\Managed\LogLibrary.dll</HintPath>
       <Private>false</Private>
     </Reference>
+    <Reference Include="NGUI">
+      <HintPath>$(SevenDaysToDiePath)\7DaysToDie_Data\Managed\NGUI.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.ImageConversionModule">
+      <HintPath>$(SevenDaysToDiePath)\7DaysToDie_Data\Managed\UnityEngine.ImageConversionModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
   </ItemGroup>
 
   <Target Name="CopyToMod" AfterTargets="Build">

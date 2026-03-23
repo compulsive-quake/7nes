@@ -383,18 +383,18 @@ namespace SevenNes.Integration
 
             if (_uiState == UIState.Closed) return;
 
-            // Escape closes whatever UI is open
-            if (Input.GetKeyDown(KeyCode.Escape))
+            // E closes play mode, Escape closes ROM list
+            if (_uiState == UIState.Playing && Input.GetKeyDown(KeyCode.E))
             {
-                if (_uiState == UIState.Playing)
-                {
-                    // Exit play mode — TV stays on in background
-                    ClearControllerInput();
-                    _tvOn = true;
-                    Log.Out($"[7nes-calibrate] FINAL VALUES (yaw {_currentYaw}): normalOffset={_calibration[_currentYaw, 0]:F3}  verticalOffset={_calibration[_currentYaw, 1]:F3}  screenWidth={_calibration[_currentYaw, 2]:F3}  flip={_flipHorizontal[_currentYaw]}");
-                    SetUIState(UIState.Closed);
-                }
-                else if (_uiState == UIState.RomList)
+                // Exit play mode — TV stays on in background
+                ClearControllerInput();
+                _tvOn = true;
+                Log.Out($"[7nes-calibrate] FINAL VALUES (yaw {_currentYaw}): normalOffset={_calibration[_currentYaw, 0]:F3}  verticalOffset={_calibration[_currentYaw, 1]:F3}  screenWidth={_calibration[_currentYaw, 2]:F3}  flip={_flipHorizontal[_currentYaw]}");
+                SetUIState(UIState.Closed);
+            }
+            else if (Input.GetKeyDown(KeyCode.Escape))
+            {
+                if (_uiState == UIState.RomList)
                 {
                     SetUIState(UIState.Closed);
                 }

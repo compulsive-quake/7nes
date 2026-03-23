@@ -40,6 +40,9 @@
 │       ├── NesEmulatorManager.cs  # Singleton: emulator + Texture2D rendering
 │       ├── NesEmulatorWindow.cs   # IMGUI overlay: screen + ROM selector
 │       └── BlockInteractionPatch.cs # Harmony patches for nesTV block
+├── UIAtlases/
+│   └── UIAtlas/              # Custom UI sprites (auto-loaded by game)
+│       └── nes_cartridge.png # NES cartridge icon for radial menu
 ├── Roms/                     # Place .nes ROM files here (not tracked in git)
 └── 7nes.dll                  # Compiled mod assembly (build output)
 ```
@@ -89,7 +92,8 @@ Place `.nes` ROM files in the `Mods/7nes/Roms/` folder. The emulator will detect
 | D          | B          |
 | Enter      | Start      |
 | Right Shift| Select     |
-| Escape     | Close emulator |
+| E          | Close emulator (during play) |
+| Escape     | Close ROM list |
 
 ## Workflow Rules
 
@@ -108,7 +112,7 @@ A shared knowledgebase for 7 Days to Die modding is located at `../7KB/`. It con
 - Prefab binary formats (TTS, NIM), block data structures, block definition resolution
 - Coordinate system, rotation system (24 orientations), multi-block rotation, X-mirror rotation
 
-Consult the [knowledgebase README](../7KB/README.md) for the full index. Reference these docs when working on any 7DTD modding task.
+Consult the [knowledgebase README](../7KB/README.md) for the full index. Reference these docs when working on any 7DTD modding task. When you learn new things about modding the game, update the knowledgebase with that information.
 
 ## Dependencies
 

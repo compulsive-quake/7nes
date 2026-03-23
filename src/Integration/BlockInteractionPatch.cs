@@ -81,7 +81,7 @@ namespace SevenNes.Integration
             __result = new BlockActivationCommand[]
             {
                 new BlockActivationCommand("play", "electric_switch", true),
-                new BlockActivationCommand("choose_game", "server_search", true),
+                new BlockActivationCommand("choose_game", "nes_cartridge", true),
                 new BlockActivationCommand(tvOn ? "turn_off" : "turn_on", "electric_switch", tvOn || hasRom),
                 new BlockActivationCommand("take", "hand", true)
             };

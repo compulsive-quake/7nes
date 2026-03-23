@@ -27,6 +27,12 @@ Copy-Item "$ScriptDir\Config\blocks.xml" "$ModDest\Config\" -Force
 Copy-Item "$ScriptDir\Config\windows.xml" "$ModDest\Config\" -Force
 Copy-Item "$ScriptDir\Config\localization.txt" "$ModDest\Config\" -Force
 
+# Copy UIAtlases if present
+$UIAtlasDir = Join-Path $ScriptDir "UIAtlases"
+if (Test-Path $UIAtlasDir) {
+    Copy-Item $UIAtlasDir "$ModDest\" -Recurse -Force
+}
+
 # Copy ROMs if any exist in source
 $RomsDir = Join-Path $ScriptDir "Roms"
 if ((Test-Path $RomsDir) -and (Get-ChildItem "$RomsDir\*.nes" -ErrorAction SilentlyContinue)) {
