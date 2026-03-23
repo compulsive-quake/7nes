@@ -20,7 +20,7 @@ public class SetupNESPrefab
         ModelImporter importer = AssetImporter.GetAtPath(fbxPath) as ModelImporter;
         if (importer != null)
         {
-            importer.globalScale = 100f; // Adjust scale - NES console should be ~1 block (1m)
+            importer.globalScale = 1.5f; // Scale so NES console fills ~1 block (1m)
             importer.useFileUnits = false;
             importer.importAnimation = false;
             importer.importBlendShapes = false;
@@ -32,6 +32,14 @@ public class SetupNESPrefab
         // Instantiate the model
         GameObject instance = Object.Instantiate(fbxAsset);
         instance.name = "NESConsolePrefab";
+
+        // Remove the nesGamepad - we only want the console body
+        Transform gamepad = instance.transform.Find("nesGamepad");
+        if (gamepad != null)
+        {
+            Object.DestroyImmediate(gamepad.gameObject);
+            Debug.Log("Removed nesGamepad from prefab");
+        }
 
         // Set layer and tag for 7DTD
         instance.isStatic = true;
@@ -49,7 +57,33 @@ public class SetupNESPrefab
             }
         }
 
-        // Setup materials from the Arnold texture set
+        // Position model so its bottom sits at ground level (y=0)
+        Bounds bounds = new Bounds(Vector3.zero, Vector3.zero);
+        bool boundsInit = false;
+        foreach (var renderer in instance.GetComponentsInChildren<Renderer>())
+        {
+            if (!boundsInit)
+            {
+                bounds = renderer.bounds;
+                boundsInit = true;
+            }
+            else
+            {
+                bounds.Encapsulate(renderer.bounds);
+            }
+        }
+        if (boundsInit)
+        {
+            // Shift so bottom of model is at y=0 and centered on x/z
+            Vector3 offset = new Vector3(-bounds.center.x, -bounds.min.y, -bounds.center.z);
+            foreach (Transform child in instance.transform)
+            {
+                child.position += offset;
+            }
+            Debug.Log($"Model bounds: {bounds.size}, shifted by {offset}");
+        }
+
+        // Apply existing materials
         SetupMaterials(instance);
 
         // Save as prefab
@@ -58,65 +92,21 @@ public class SetupNESPrefab
         Object.DestroyImmediate(instance);
 
         Debug.Log($"NES Console prefab created at {prefabPath}");
-        Debug.Log("Review the prefab scale and materials, then run '7nes > Build Asset Bundle'");
+        Debug.Log("Run '7nes > Build Asset Bundle' to build.");
     }
 
     static void SetupMaterials(GameObject go)
     {
-        string texturePath = "Assets/NESModel/Textures/Arnold";
+        Material nesMat = AssetDatabase.LoadAssetAtPath<Material>("Assets/NESModel/Materials/nes.mat");
+        if (nesMat == null)
+        {
+            Debug.LogError("Could not find Assets/NESModel/Materials/nes.mat");
+            return;
+        }
 
-        // Find all renderers and set up materials
         foreach (var renderer in go.GetComponentsInChildren<Renderer>())
         {
-            Material[] mats = renderer.sharedMaterials;
-            for (int i = 0; i < mats.Length; i++)
-            {
-                // Create a new Standard material for each submesh
-                int udimTile = 1001 + i; // First submesh = 1001, second = 1002
-                Material mat = new Material(Shader.Find("Standard"));
-                mat.name = $"NES_Mat_{udimTile}";
-
-                // Try to load textures for this UDIM tile
-                string baseColorPath = $"{texturePath}/BaseColor.{udimTile}.exr";
-                string normalPath = $"{texturePath}/Normal.{udimTile}.exr";
-                string metallicPath = $"{texturePath}/Metalness.{udimTile}.exr";
-                string roughnessPath = $"{texturePath}/Roughness.{udimTile}.exr";
-
-                Texture2D baseColor = AssetDatabase.LoadAssetAtPath<Texture2D>(baseColorPath);
-                if (baseColor != null)
-                {
-                    mat.mainTexture = baseColor;
-                }
-
-                Texture2D normal = AssetDatabase.LoadAssetAtPath<Texture2D>(normalPath);
-                if (normal != null)
-                {
-                    // Set normal map import settings
-                    TextureImporter normalImporter = AssetImporter.GetAtPath(normalPath) as TextureImporter;
-                    if (normalImporter != null && normalImporter.textureType != TextureImporterType.NormalMap)
-                    {
-                        normalImporter.textureType = TextureImporterType.NormalMap;
-                        normalImporter.SaveAndReimport();
-                        normal = AssetDatabase.LoadAssetAtPath<Texture2D>(normalPath);
-                    }
-                    mat.SetTexture("_BumpMap", normal);
-                    mat.EnableKeyword("_NORMALMAP");
-                }
-
-                Texture2D metallic = AssetDatabase.LoadAssetAtPath<Texture2D>(metallicPath);
-                if (metallic != null)
-                {
-                    mat.SetTexture("_MetallicGlossMap", metallic);
-                    mat.EnableKeyword("_METALLICGLOSSMAP");
-                }
-
-                // Save material as asset
-                string matPath = $"Assets/NESModel/Materials/NES_Mat_{udimTile}.mat";
-                AssetDatabase.CreateAsset(mat, matPath);
-
-                mats[i] = mat;
-            }
-            renderer.sharedMaterials = mats;
+            renderer.sharedMaterial = nesMat;
         }
     }
 }
