@@ -43,9 +43,25 @@ if (Test-Path $UIAtlasDir) {
 
 # Copy ROMs if any exist in source
 $RomsDir = Join-Path $ScriptDir "Roms"
-if ((Test-Path $RomsDir) -and (Get-ChildItem "$RomsDir\*.nes" -ErrorAction SilentlyContinue)) {
-    Write-Host "Copying ROMs..."
-    Copy-Item "$RomsDir\*.nes" "$ModDest\Roms\" -Force
+if (Test-Path $RomsDir) {
+    if (Get-ChildItem "$RomsDir\*.nes" -ErrorAction SilentlyContinue) {
+        Write-Host "Copying ROMs..."
+        Copy-Item "$RomsDir\*.nes" "$ModDest\Roms\" -Force
+    }
+    # Copy box art folder if present
+    $BoxDir = Join-Path $RomsDir "box"
+    if (Test-Path $BoxDir) {
+        New-Item -ItemType Directory -Path "$ModDest\Roms\box" -Force | Out-Null
+        Copy-Item "$BoxDir\*" "$ModDest\Roms\box\" -Force
+        Write-Host "Copied box art."
+    }
+    # Copy cart art folder if present
+    $CartDir = Join-Path $RomsDir "Cart"
+    if (Test-Path $CartDir) {
+        New-Item -ItemType Directory -Path "$ModDest\Roms\Cart" -Force | Out-Null
+        Copy-Item "$CartDir\*" "$ModDest\Roms\Cart\" -Force
+        Write-Host "Copied cart art."
+    }
 }
 
 Write-Host ""

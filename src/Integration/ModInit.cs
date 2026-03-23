@@ -23,6 +23,9 @@ namespace SevenNes.Integration
             if (!Directory.Exists(RomsPath))
                 Directory.CreateDirectory(RomsPath);
 
+            // Generate item configs from ROMs before the game loads Config XMLs
+            NesCartridgeItems.GenerateItemConfigs(ModPath, RomsPath);
+
             LoadCustomIconData();
             NesInputBindings.Instance.SetSavePath(ModPath);
 

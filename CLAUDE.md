@@ -39,11 +39,14 @@
 │       ├── ModInit.cs        # IModApi entry point, Harmony patching
 │       ├── NesEmulatorManager.cs  # Singleton: emulator + Texture2D rendering
 │       ├── NesEmulatorWindow.cs   # IMGUI overlay: screen + ROM selector
+│       ├── NesCartridgeItems.cs   # Dynamic item generation from ROMs
 │       └── BlockInteractionPatch.cs # Harmony patches for nesTV block
 ├── UIAtlases/
 │   └── UIAtlas/              # Custom UI sprites (auto-loaded by game)
 │       └── nes_cartridge.png # NES cartridge icon for radial menu
 ├── Roms/                     # Place .nes ROM files here (not tracked in git)
+│   ├── box/                  # Box art PNGs (filename matches ROM name)
+│   └── Cart/                 # Cart label art PNGs
 └── 7nes.dll                  # Compiled mod assembly (build output)
 ```
 
