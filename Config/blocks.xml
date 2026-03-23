@@ -3,13 +3,26 @@
         <block name="nesTV">
             <property name="CreativeMode" value="Player"/>
             <property name="Class" value="Block"/>
-            <property name="CustomIcon" value="nesTV"/>
+            <property name="CustomIcon" value="tvSmallStand1x1"/>
             <property name="Extends" value="tvSmallStand1x1"/>
-            <property name="Shape" value="ModelEntity"/>
-            <property name="Model" value="#@modfolder:Resources/nesmodel.unity3d?Assets/NESModel/NESConsolePrefab.prefab"/>
             <property name="DisplayInfo" value="Name"/>
             <property name="DescriptionKey" value="nesTV_desc"/>
             <property name="ActivationText" value="nesTV_activate"/>
+        </block>
+        <block name="nesConsole">
+            <property name="CreativeMode" value="Player"/>
+            <property name="Class" value="Block"/>
+            <property name="CustomIcon" value="nesTV"/>
+            <property name="Shape" value="ModelEntity"/>
+            <property name="Model" value="#@modfolder:Resources/nesmodel.unity3d?Assets/NESModel/NESConsolePrefab.prefab"/>
+            <property name="ModelOffset" value="0,0,0"/>
+            <property name="Material" value="MelectricParts"/>
+            <property name="Collide" value="movement,melee,bullet,arrow,rocket"/>
+            <property name="IsTerrainDecoration" value="true"/>
+            <property name="StabilitySupport" value="false"/>
+            <property name="Place" value="TowardsPlacerInverted"/>
+            <property name="DisplayInfo" value="Name"/>
+            <property name="DescriptionKey" value="nesConsole_desc"/>
         </block>
     </append>
 </configs>

@@ -9,7 +9,9 @@
       "Bash(find c:/Users/Richard/WebstormProjects/7KB -type f -name *.md)",
       "Bash(xargs ls:*)",
       "WebFetch(domain:files.softicons.com)",
-      "Bash(grep -r \"Audio\\\\|audio\\\\|sound\\\\|Sound\\\\|APU\\\\|apu\" c:/Users/Richard/WebstormProjects/7nes/src --include=*.cs)"
+      "Bash(grep -r \"Audio\\\\|audio\\\\|sound\\\\|Sound\\\\|APU\\\\|apu\" c:/Users/Richard/WebstormProjects/7nes/src --include=*.cs)",
+      "Bash(grep -r \"Shape\" /c/Users/Richard/WebstormProjects/7KB/*.md)",
+      "Bash(find /c/Users/Richard/WebstormProjects -name blocks.xml -o -name *block*.xml)"
     ]
   }
 }

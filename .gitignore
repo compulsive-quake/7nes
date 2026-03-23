@@ -5,6 +5,7 @@ obj/
 *.user
 .vs/
 Roms/
+UnityProject/Assets/
 UnityProject/Library/
 UnityProject/Temp/
 UnityProject/Logs/
