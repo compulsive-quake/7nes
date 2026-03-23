@@ -1,4 +1,3 @@
-using System;
 using System.IO;
 using UnityEngine;
 
@@ -174,19 +173,19 @@ namespace SevenNes.Integration
             {
                 case UIState.Closed:
                     UnlockPlayer();
-                    SetCrosshairVisible(true);
+                    SetHUDVisible(true);
                     Cursor.visible = false;
                     Cursor.lockState = CursorLockMode.Locked;
                     break;
                 case UIState.RomList:
                     LockPlayer();
-                    SetCrosshairVisible(false);
+                    SetHUDVisible(false);
                     Cursor.visible = true;
                     Cursor.lockState = CursorLockMode.None;
                     break;
                 case UIState.Playing:
                     LockPlayer();
-                    SetCrosshairVisible(false);
+                    SetHUDVisible(false);
                     Cursor.visible = false;
                     Cursor.lockState = CursorLockMode.Locked;
                     break;
@@ -205,10 +204,9 @@ namespace SevenNes.Integration
             if (player != null) player.SetControllable(true);
         }
 
-        private string _crosshairWindowGroup;
-        private bool _crosshairDiscoveryDone;
+        private GUIWindowManager.HudEnabledStates _previousHudState = GUIWindowManager.HudEnabledStates.Enabled;
 
-        private void SetCrosshairVisible(bool visible)
+        private void SetHUDVisible(bool visible)
         {
             try
             {
@@ -217,80 +215,19 @@ namespace SevenNes.Integration
                 var playerUI = LocalPlayerUI.GetUIForPlayer(player);
                 if (playerUI?.windowManager == null) return;
 
-                // One-time discovery: log all window groups so we can find the crosshair name
-                if (!_crosshairDiscoveryDone)
+                if (!visible)
                 {
-                    _crosshairDiscoveryDone = true;
-                    DiscoverCrosshairWindow(playerUI);
+                    _previousHudState = playerUI.windowManager.bHUDEnabled;
+                    playerUI.windowManager.SetHUDEnabled(GUIWindowManager.HudEnabledStates.FullHide);
                 }
-
-                if (_crosshairWindowGroup != null)
+                else
                 {
-                    if (visible)
-                        playerUI.windowManager.Open(_crosshairWindowGroup, false);
-                    else
-                        playerUI.windowManager.Close(_crosshairWindowGroup);
+                    playerUI.windowManager.SetHUDEnabled(_previousHudState);
                 }
             }
-            catch (Exception e)
+            catch (System.Exception e)
             {
-                Log.Warning($"[7nes] Could not toggle crosshair: {e.Message}");
-            }
-        }
-
-        private void DiscoverCrosshairWindow(LocalPlayerUI playerUI)
-        {
-            // Try known crosshair window group names
-            string[] candidates = {
-                "toolbeltCrosshair", "crosshair", "Crosshair",
-                "windowCrosshair", "HUDCrosshair", "hudCrosshair",
-                "windowGameHud", "toolbelt"
-            };
-
-            if (playerUI.xui != null)
-            {
-                foreach (var name in candidates)
-                {
-                    var wg = playerUI.xui.FindWindowGroupByName(name);
-                    if (wg != null)
-                    {
-                        Log.Out($"[7nes] Found crosshair window group: '{name}'");
-                        _crosshairWindowGroup = name;
-                        return;
-                    }
-                }
-
-                // Discovery: use reflection to find all window groups for debugging
-                Log.Out("[7nes] Crosshair window not found in candidates. Searching via reflection...");
-                try
-                {
-                    var xuiType = playerUI.xui.GetType();
-                    foreach (var field in xuiType.GetFields(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public))
-                    {
-                        if (field.FieldType.Name.Contains("Dictionary") || field.FieldType.Name.Contains("List"))
-                        {
-                            var val = field.GetValue(playerUI.xui);
-                            if (val is System.Collections.IDictionary dict)
-                            {
-                                foreach (var key in dict.Keys)
-                                {
-                                    string keyStr = key?.ToString() ?? "";
-                                    Log.Out($"[7nes]   XUi dict field '{field.Name}' key: '{keyStr}'");
-                                    if (keyStr.IndexOf("rosshair", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                                        keyStr.IndexOf("cursor", StringComparison.OrdinalIgnoreCase) >= 0)
-                                    {
-                                        _crosshairWindowGroup = keyStr;
-                                        Log.Out($"[7nes] Auto-detected crosshair window group: '{keyStr}'");
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                catch (Exception e)
-                {
-                    Log.Warning($"[7nes] Could not enumerate window groups via reflection: {e.Message}");
-                }
+                Log.Warning($"[7nes] Could not toggle HUD: {e.Message}");
             }
         }
 
