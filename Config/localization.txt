@@ -6,5 +6,6 @@ blockcommand_play,blocks,Block,FALSE,FALSE,Play
 blockcommand_choose_game,blocks,Block,FALSE,FALSE,Choose Game
 blockcommand_turn_on,blocks,Block,FALSE,FALSE,Turn On
 blockcommand_turn_off,blocks,Block,FALSE,FALSE,Turn Off
+blockcommand_controls,blocks,Block,FALSE,FALSE,Controls
 nesConsole,blocks,Block,FALSE,FALSE,NES Console
 nesConsole_desc,blocks,Block,FALSE,FALSE,A decorative Nintendo Entertainment System console.

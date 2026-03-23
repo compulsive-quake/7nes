@@ -24,6 +24,7 @@ namespace SevenNes.Integration
                 Directory.CreateDirectory(RomsPath);
 
             LoadCustomIconData();
+            NesInputBindings.Instance.SetSavePath(ModPath);
 
             var harmony = new Harmony("com.7nes.nesemulator");
             harmony.PatchAll(Assembly.GetExecutingAssembly());

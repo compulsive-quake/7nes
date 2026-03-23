@@ -8,11 +8,12 @@ namespace SevenNes.Integration
         private static NesEmulatorWindow _instance;
 
         // === STATE ===
-        private enum UIState { Closed, RomList, Playing }
+        private enum UIState { Closed, RomList, Playing, Controls }
         private UIState _uiState = UIState.Closed;
         private bool _tvOn; // TV is powered on (screen quad visible, emulator runs in background)
 
         private NesEmulatorManager _manager;
+        private NesInputBindings _bindings;
         private Vector2 _romListScroll;
 
         // GUI styles
@@ -57,6 +58,11 @@ namespace SevenNes.Integration
         private float _closeCooldown;
         private const float CloseCooldownDuration = 0.5f;
 
+        // Controls rebinding state
+        private int _rebindIndex = -1;       // which button (0-7) is being rebound, -1 = none
+        private bool _rebindIsGamepad;        // true = rebinding gamepad column, false = keyboard
+        private Vector2 _controlsScroll;
+
 
         // === SINGLETON ===
         public static NesEmulatorWindow Instance
@@ -77,6 +83,7 @@ namespace SevenNes.Integration
         void Awake()
         {
             _manager = NesEmulatorManager.Instance;
+            _bindings = NesInputBindings.Instance;
             _dimOverlay = new Texture2D(1, 1);
             _dimOverlay.SetPixel(0, 0, new Color(0, 0, 0, 0.75f));
             _dimOverlay.Apply();
@@ -161,6 +168,16 @@ namespace SevenNes.Integration
             SetUIState(UIState.Closed);
         }
 
+        /// Hold-E radial: Controls
+        public void HandleControls(Vector3i blockPos, byte rotation)
+        {
+            if (_uiState == UIState.Playing) return;
+            SetBlockInfo(blockPos, rotation);
+            _rebindIndex = -1;
+            _controlsScroll = Vector2.zero;
+            SetUIState(UIState.Controls);
+        }
+
         private void SetBlockInfo(Vector3i blockPos, byte rotation)
         {
             _blockPos = blockPos;
@@ -168,6 +185,13 @@ namespace SevenNes.Integration
             _currentYaw = rotation & 0x3;
             _blockCenter = new Vector3(blockPos.x + 0.5f, blockPos.y + 0.5f, blockPos.z + 0.5f);
             _screenNormal = GetScreenNormal(rotation);
+        }
+
+        private bool CheckPowerState()
+        {
+            var world = GameManager.Instance?.World;
+            if (world == null) return false;
+            return PowerHelper.IsPowered(world, 0, _blockPos);
         }
 
         // === STATE MANAGEMENT ===
@@ -183,6 +207,7 @@ namespace SevenNes.Integration
                     Cursor.lockState = CursorLockMode.Locked;
                     break;
                 case UIState.RomList:
+                case UIState.Controls:
                     LockPlayer();
                     Cursor.visible = true;
                     Cursor.lockState = CursorLockMode.None;
@@ -313,11 +338,35 @@ namespace SevenNes.Integration
         }
 
         // === UPDATE ===
+        private float _powerCheckTimer;
+        private const float PowerCheckInterval = 0.5f;
+
         void Update()
         {
             // Tick down close cooldown
             if (_closeCooldown > 0f)
                 _closeCooldown -= Time.deltaTime;
+
+            // Periodically check if power was lost while TV is on
+            if (_tvOn)
+            {
+                _powerCheckTimer += Time.deltaTime;
+                if (_powerCheckTimer >= PowerCheckInterval)
+                {
+                    _powerCheckTimer = 0f;
+                    if (!CheckPowerState())
+                    {
+                        Log.Out("[7nes] Power lost — turning TV off");
+                        _tvOn = false;
+                        _manager.Stop();
+                        ClearControllerInput();
+                        DestroyScreenQuad();
+                        if (_uiState != UIState.Closed)
+                            SetUIState(UIState.Closed);
+                        return;
+                    }
+                }
+            }
 
             // Background mode: keep running emulator frames even when UI is closed
             if (_tvOn && _manager.IsRunning && _uiState == UIState.Closed)
@@ -327,6 +376,16 @@ namespace SevenNes.Integration
             }
 
             if (_uiState == UIState.Closed) return;
+
+            // Controls rebinding: detect key/button presses
+            if (_uiState == UIState.Controls)
+            {
+                UpdateControlsRebind();
+                // Keep running frames in background
+                if (_tvOn && _manager.IsRunning)
+                    _manager.RunFrame();
+                return;
+            }
 
             // E closes play mode, Escape closes ROM list
             if (_uiState == UIState.Playing && Input.GetKeyDown(KeyCode.E))
@@ -361,6 +420,31 @@ namespace SevenNes.Integration
             if (_uiState == UIState.Playing)
             {
                 UpdatePlaying();
+            }
+        }
+
+        private void UpdateControlsRebind()
+        {
+            Cursor.visible = true;
+            Cursor.lockState = CursorLockMode.None;
+
+            if (_rebindIndex < 0) return;
+
+            // Cancel rebind with Escape
+            if (Input.GetKeyDown(KeyCode.Escape))
+            {
+                _rebindIndex = -1;
+                return;
+            }
+
+            KeyCode detected = NesInputBindings.DetectKeyDown(_rebindIsGamepad);
+            if (detected != KeyCode.None)
+            {
+                if (_rebindIsGamepad)
+                    _bindings.SetGamepad(_rebindIndex, detected);
+                else
+                    _bindings.SetKeyboard(_rebindIndex, detected);
+                _rebindIndex = -1;
             }
         }
 
@@ -403,15 +487,9 @@ namespace SevenNes.Integration
                 Log.Out($"[7nes-calibrate] yaw={_currentYaw} normalOffset={_calibration[y, 0]:F3}  verticalOffset={_calibration[y, 1]:F3}  screenWidth={_calibration[y, 2]:F3}  flip={_flipHorizontal[y]}");
             }
 
-            // NES controller input
-            _manager.SetButton(0, Input.GetKey(KeyCode.A));
-            _manager.SetButton(1, Input.GetKey(KeyCode.D));
-            _manager.SetButton(2, Input.GetKey(KeyCode.RightShift));
-            _manager.SetButton(3, Input.GetKey(KeyCode.Return));
-            _manager.SetButton(4, Input.GetKey(KeyCode.UpArrow));
-            _manager.SetButton(5, Input.GetKey(KeyCode.DownArrow));
-            _manager.SetButton(6, Input.GetKey(KeyCode.LeftArrow));
-            _manager.SetButton(7, Input.GetKey(KeyCode.RightArrow));
+            // NES controller input — use configurable bindings
+            for (int i = 0; i < NesInputBindings.ButtonCount; i++)
+                _manager.SetButton(i, _bindings.IsPressed(i));
 
             _manager.RunFrame();
         }
@@ -457,6 +535,9 @@ namespace SevenNes.Integration
                     {
                         DrawControlsHint();
                     }
+                    break;
+                case UIState.Controls:
+                    DrawControlsDialog();
                     break;
             }
         }
@@ -521,6 +602,134 @@ namespace SevenNes.Integration
             GUI.Label(new Rect(x, y + panelHeight - 35, panelWidth, 25), "Press Esc to close", hintStyle2);
         }
 
+        // === CONTROLS DIALOG ===
+        void DrawControlsDialog()
+        {
+            GUI.Box(new Rect(0, 0, Screen.width, Screen.height), "", _panelStyle);
+
+            float panelWidth = 520;
+            float panelHeight = 460;
+            float px = (Screen.width - panelWidth) / 2f;
+            float py = (Screen.height - panelHeight) / 2f;
+
+            GUI.Box(new Rect(px - 10, py - 10, panelWidth + 20, panelHeight + 20), "");
+
+            // Title
+            var titleStyle = new GUIStyle(_labelStyle);
+            titleStyle.fontSize = 24;
+            titleStyle.fontStyle = FontStyle.Bold;
+            GUI.Label(new Rect(px, py, panelWidth, 40), "NES Controls", titleStyle);
+
+            float headerY = py + 50;
+
+            // Column headers
+            var headerStyle = new GUIStyle(_labelStyle);
+            headerStyle.fontSize = 14;
+            headerStyle.fontStyle = FontStyle.Bold;
+            headerStyle.normal.textColor = new Color(0.8f, 0.8f, 0.8f);
+
+            float col0 = px + 20;
+            float col1 = px + 140;
+            float col2 = px + 320;
+            float colW1 = 150;
+            float colW2 = 150;
+            float rowH = 38;
+
+            GUI.Label(new Rect(col0, headerY, 100, 30), "NES Button", headerStyle);
+            GUI.Label(new Rect(col1, headerY, colW1, 30), "Keyboard", headerStyle);
+            GUI.Label(new Rect(col2, headerY, colW2, 30), "Controller", headerStyle);
+
+            float rowStart = headerY + 35;
+
+            // Binding rows
+            var nameStyle = new GUIStyle(_labelStyle);
+            nameStyle.fontSize = 15;
+            nameStyle.alignment = TextAnchor.MiddleLeft;
+            nameStyle.normal.textColor = Color.white;
+
+            var bindBtnStyle = new GUIStyle(GUI.skin.button);
+            bindBtnStyle.fontSize = 14;
+            bindBtnStyle.alignment = TextAnchor.MiddleCenter;
+
+            var listeningBtnStyle = new GUIStyle(bindBtnStyle);
+            listeningBtnStyle.normal.textColor = Color.yellow;
+            listeningBtnStyle.fontStyle = FontStyle.Bold;
+
+            for (int i = 0; i < NesInputBindings.ButtonCount; i++)
+            {
+                float ry = rowStart + i * rowH;
+
+                // Button name
+                GUI.Label(new Rect(col0, ry, 110, 32), NesInputBindings.ButtonNames[i], nameStyle);
+
+                // Keyboard binding
+                bool isRebindingKb = (_rebindIndex == i && !_rebindIsGamepad);
+                string kbText = isRebindingKb ? "< Press Key >" : NesInputBindings.KeyName(_bindings.GetKeyboard(i));
+                GUIStyle kbStyle = isRebindingKb ? listeningBtnStyle : bindBtnStyle;
+                if (GUI.Button(new Rect(col1, ry, colW1, 32), kbText, kbStyle))
+                {
+                    if (!isRebindingKb)
+                    {
+                        _rebindIndex = i;
+                        _rebindIsGamepad = false;
+                    }
+                }
+
+                // Gamepad binding
+                bool isRebindingGp = (_rebindIndex == i && _rebindIsGamepad);
+                string gpText = isRebindingGp ? "< Press Button >" : NesInputBindings.KeyName(_bindings.GetGamepad(i));
+                GUIStyle gpStyle = isRebindingGp ? listeningBtnStyle : bindBtnStyle;
+                if (GUI.Button(new Rect(col2, ry, colW2, 32), gpText, gpStyle))
+                {
+                    if (!isRebindingGp)
+                    {
+                        _rebindIndex = i;
+                        _rebindIsGamepad = true;
+                    }
+                }
+            }
+
+            // Bottom buttons
+            float btnY = rowStart + NesInputBindings.ButtonCount * rowH + 15;
+            float btnW = 140;
+            float btnH = 35;
+            float btnSpacing = 20;
+            float totalBtnW = btnW * 3 + btnSpacing * 2;
+            float btnStartX = px + (panelWidth - totalBtnW) / 2f;
+
+            if (GUI.Button(new Rect(btnStartX, btnY, btnW, btnH), "Reset Defaults", _buttonStyle))
+            {
+                _bindings.ResetDefaults();
+                _rebindIndex = -1;
+            }
+
+            if (GUI.Button(new Rect(btnStartX + btnW + btnSpacing, btnY, btnW, btnH), "Clear", _buttonStyle))
+            {
+                if (_rebindIndex >= 0)
+                {
+                    if (_rebindIsGamepad)
+                        _bindings.SetGamepad(_rebindIndex, KeyCode.None);
+                    else
+                        _bindings.SetKeyboard(_rebindIndex, KeyCode.None);
+                    _rebindIndex = -1;
+                }
+            }
+
+            if (GUI.Button(new Rect(btnStartX + (btnW + btnSpacing) * 2, btnY, btnW, btnH), "Save & Close", _buttonStyle))
+            {
+                _bindings.Save();
+                _rebindIndex = -1;
+                SetUIState(UIState.Closed);
+            }
+
+            // Hint
+            var hintStyle = new GUIStyle(_labelStyle);
+            hintStyle.fontSize = 12;
+            hintStyle.normal.textColor = new Color(1, 1, 1, 0.4f);
+            string hintText = _rebindIndex >= 0 ? "Press Esc to cancel rebinding" : "Click a binding to change it";
+            GUI.Label(new Rect(px, btnY + btnH + 10, panelWidth, 25), hintText, hintStyle);
+        }
+
         // === PLAYING HUD ===
         void DrawControlsHint()
         {
@@ -533,7 +742,7 @@ namespace SevenNes.Integration
 
             GUI.Box(new Rect(0, hintY - 5, Screen.width, hintHeight + 10), "", _panelStyle);
             GUI.Label(new Rect(0, hintY, Screen.width, hintHeight),
-                "Arrows=D-Pad | A=A | D=B | Enter=Start | RShift=Select | Tab=ROM List | F5=Reset | E=Quit",
+                _bindings.GetControlsHintString(),
                 hintStyle);
         }
 

@@ -2,7 +2,8 @@
     <append xpath="/blocks">
         <block name="nesTV">
             <property name="CreativeMode" value="Player"/>
-            <property name="Class" value="Block"/>
+            <property name="Class" value="Powered"/>
+            <property name="RequiredPower" value="5"/>
             <property name="CustomIcon" value="tvSmallStand1x1"/>
             <property name="Extends" value="tvSmallStand1x1"/>
             <property name="DisplayInfo" value="Name"/>
