@@ -183,6 +183,8 @@ namespace SevenNes.Core
             _noisePeriod = NoisePeriodTable[0];
             _dmcRate = DmcRateTable[0];
             _frameCounterCycle = 0;
+            _frameCounterMode = false;
+            _frameIrqInhibit = true;
             _frameIrqFlag = false;
             _dmcIrqFlag = false;
             _dmcBytesRemaining = 0;

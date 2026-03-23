@@ -8,6 +8,7 @@ namespace SevenNes.Integration
         private Apu _apu;
         private bool _active;
         private float _lastSample;
+        private float[] _monoBuffer;
 
         public void Init(Apu apu)
         {
@@ -49,13 +50,14 @@ namespace SevenNes.Integration
             }
 
             int sampleFrames = data.Length / channels;
-            float[] monoBuffer = new float[sampleFrames];
-            int samplesRead = _apu.ReadSamples(monoBuffer, sampleFrames);
+            if (_monoBuffer == null || _monoBuffer.Length < sampleFrames)
+                _monoBuffer = new float[sampleFrames];
+            int samplesRead = _apu.ReadSamples(_monoBuffer, sampleFrames);
 
             // Copy mono samples to all channels, holding last sample on underrun
             for (int i = 0; i < sampleFrames; i++)
             {
-                float sample = i < samplesRead ? monoBuffer[i] : _lastSample;
+                float sample = i < samplesRead ? _monoBuffer[i] : _lastSample;
                 if (i < samplesRead)
                     _lastSample = sample;
                 for (int ch = 0; ch < channels; ch++)

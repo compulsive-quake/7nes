@@ -53,6 +53,10 @@ namespace SevenNes.Integration
         private Vector3i _blockPos;
         private byte _blockRotation;
 
+        // Cooldown to prevent E-close from immediately re-triggering block interaction
+        private float _closeCooldown;
+        private const float CloseCooldownDuration = 0.5f;
+
 
         // === SINGLETON ===
         public static NesEmulatorWindow Instance
@@ -98,6 +102,7 @@ namespace SevenNes.Integration
         public void HandleActivate(Vector3i blockPos, byte rotation)
         {
             if (_uiState == UIState.Playing) return;
+            if (_closeCooldown > 0f) return;
             SetBlockInfo(blockPos, rotation);
 
             if (_manager.HasLoadedRom)
@@ -179,7 +184,6 @@ namespace SevenNes.Integration
                     break;
                 case UIState.RomList:
                     LockPlayer();
-                    SetHUDVisible(false);
                     Cursor.visible = true;
                     Cursor.lockState = CursorLockMode.None;
                     break;
@@ -311,6 +315,10 @@ namespace SevenNes.Integration
         // === UPDATE ===
         void Update()
         {
+            // Tick down close cooldown
+            if (_closeCooldown > 0f)
+                _closeCooldown -= Time.deltaTime;
+
             // Background mode: keep running emulator frames even when UI is closed
             if (_tvOn && _manager.IsRunning && _uiState == UIState.Closed)
             {
@@ -326,6 +334,7 @@ namespace SevenNes.Integration
                 // Exit play mode — TV stays on in background
                 ClearControllerInput();
                 _tvOn = true;
+                _closeCooldown = CloseCooldownDuration;
                 Log.Out($"[7nes-calibrate] FINAL VALUES (yaw {_currentYaw}): normalOffset={_calibration[_currentYaw, 0]:F3}  verticalOffset={_calibration[_currentYaw, 1]:F3}  screenWidth={_calibration[_currentYaw, 2]:F3}  flip={_flipHorizontal[_currentYaw]}");
                 SetUIState(UIState.Closed);
             }
@@ -447,7 +456,6 @@ namespace SevenNes.Integration
                     if (_manager.IsRunning)
                     {
                         DrawControlsHint();
-                        DrawCalibrationHUD();
                     }
                     break;
             }
@@ -525,7 +533,7 @@ namespace SevenNes.Integration
 
             GUI.Box(new Rect(0, hintY - 5, Screen.width, hintHeight + 10), "", _panelStyle);
             GUI.Label(new Rect(0, hintY, Screen.width, hintHeight),
-                "Arrows=D-Pad | A=A | D=B | Enter=Start | RShift=Select | Tab=ROM List | F5=Reset | Esc=Close",
+                "Arrows=D-Pad | A=A | D=B | Enter=Start | RShift=Select | Tab=ROM List | F5=Reset | E=Quit",
                 hintStyle);
         }
 

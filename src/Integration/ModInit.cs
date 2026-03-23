@@ -12,7 +12,8 @@ namespace SevenNes.Integration
         public static string ModPath { get; private set; }
         public static string RomsPath { get; private set; }
 
-        private static readonly Dictionary<string, byte[]> pendingIcons = new Dictionary<string, byte[]>();
+        private static readonly Dictionary<string, byte[]> iconData = new Dictionary<string, byte[]>();
+        private static bool _iconsInjected;
 
         public void InitMod(Mod _modInstance)
         {
@@ -39,8 +40,8 @@ namespace SevenNes.Integration
             var iconPath = Path.Combine(ModPath, "UIAtlases", "UIAtlas", "nes_cartridge.png");
             if (File.Exists(iconPath))
             {
-                pendingIcons["ui_game_symbol_nes_cartridge"] = File.ReadAllBytes(iconPath);
-                Log.Out("[7nes] Queued cartridge icon for atlas injection");
+                iconData["ui_game_symbol_nes_cartridge"] = File.ReadAllBytes(iconPath);
+                Log.Out("[7nes] Loaded cartridge icon for atlas injection");
             }
             else
             {
@@ -50,7 +51,8 @@ namespace SevenNes.Integration
 
         public static void InjectCustomIcons()
         {
-            if (pendingIcons.Count == 0) return;
+            if (iconData.Count == 0) return;
+            if (_iconsInjected) return;
 
             try
             {
@@ -72,7 +74,7 @@ namespace SevenNes.Integration
                     return;
                 }
 
-                foreach (var kvp in pendingIcons)
+                foreach (var kvp in iconData)
                 {
                     var spriteName = kvp.Key;
                     var pngData = kvp.Value;
@@ -104,12 +106,27 @@ namespace SevenNes.Integration
                     Log.Out($"[7nes] Injected custom icon: {spriteName} ({tex.width}x{tex.height})");
                 }
 
-                pendingIcons.Clear();
+                _iconsInjected = true;
             }
             catch (Exception e)
             {
                 Log.Error("[7nes] Failed to inject custom icons: " + e.Message);
             }
+        }
+
+        /// Re-inject icons if the atlas was rebuilt (e.g., after scene reload)
+        public static void EnsureIconsInjected()
+        {
+            if (iconData.Count == 0) return;
+
+            // Check if our atlas still exists
+            var existing = GameObject.Find("7nes_ui_game_symbol_nes_cartridge");
+            if (existing != null) return;
+
+            // Atlas was lost, re-inject
+            Log.Out("[7nes] Custom icon atlas lost, re-injecting...");
+            _iconsInjected = false;
+            InjectCustomIcons();
         }
     }
 

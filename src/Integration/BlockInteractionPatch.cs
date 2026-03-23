@@ -74,6 +74,9 @@ namespace SevenNes.Integration
         {
             if (__instance.GetBlockName() != "nesTV") return true;
 
+            // Ensure custom icons are still in the atlas
+            ModInit.EnsureIconsInjected();
+
             var window = NesEmulatorWindow.Instance;
             bool tvOn = window.IsTvOn;
             bool hasRom = window.HasLoadedRom;
