@@ -7,6 +7,7 @@ namespace SevenNes.Core
     {
         public Cpu Cpu { get; private set; }
         public Ppu Ppu { get; private set; }
+        public Apu Apu { get; private set; }
         public Cartridge Cartridge { get; private set; }
         public Controller Controller1 { get; private set; }
         public Controller Controller2 { get; private set; }
@@ -20,6 +21,7 @@ namespace SevenNes.Core
         {
             Cpu = new Cpu(this);
             Ppu = new Ppu(this);
+            Apu = new Apu(this);
             Cartridge = new Cartridge();
             Controller1 = new Controller();
             Controller2 = new Controller();
@@ -42,6 +44,7 @@ namespace SevenNes.Core
         {
             Cpu.Reset();
             Ppu.Reset();
+            Apu.Reset();
             Array.Clear(Ram, 0, Ram.Length);
             _dmaCyclesRemaining = 0;
         }
@@ -54,6 +57,7 @@ namespace SevenNes.Core
                 if (_dmaCyclesRemaining > 0)
                 {
                     _dmaCyclesRemaining--;
+                    Apu.Step();
                     // 3 PPU cycles per CPU cycle
                     Ppu.Step();
                     Ppu.Step();
@@ -62,12 +66,18 @@ namespace SevenNes.Core
                 else
                 {
                     int cpuCycles = Cpu.Step();
-                    for (int i = 0; i < cpuCycles * 3; i++)
+                    for (int c = 0; c < cpuCycles; c++)
                     {
+                        Apu.Step();
+                        Ppu.Step();
+                        Ppu.Step();
                         Ppu.Step();
                         if (Ppu.FrameComplete)
                             break;
                     }
+                    // Set IRQ from APU
+                    if (Apu.IrqPending)
+                        Cpu.IrqPending = true;
                 }
             }
         }
@@ -89,6 +99,10 @@ namespace SevenNes.Core
                 // PPU registers (mirrored every 8 bytes)
                 return Ppu.ReadRegister(address);
             }
+            else if (address == 0x4015)
+            {
+                return Apu.ReadStatus();
+            }
             else if (address == 0x4016)
             {
                 return Controller1.Read();
@@ -99,7 +113,7 @@ namespace SevenNes.Core
             }
             else if (address <= 0x401F)
             {
-                // APU/IO registers - return 0
+                // Other APU/IO registers - return 0
                 return 0;
             }
             else
@@ -138,9 +152,14 @@ namespace SevenNes.Core
                 Controller1.Write(value);
                 Controller2.Write(value);
             }
+            else if (address <= 0x4017)
+            {
+                // APU registers ($4000-$4013, $4015, $4017)
+                Apu.WriteRegister(address, value);
+            }
             else if (address <= 0x401F)
             {
-                // APU/IO registers - ignore
+                // Unused APU/IO registers
             }
             else
             {

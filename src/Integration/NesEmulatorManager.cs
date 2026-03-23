@@ -18,6 +18,13 @@ namespace SevenNes.Integration
         private string[] _romFiles;
         private int _currentRomIndex;
         private Color32[] _colorBuffer;
+        private NesAudioPlayer _audioPlayer;
+        private GameObject _audioObject;
+
+        // Frame timing: NES NTSC runs at ~60.0988 Hz
+        private const double NtscFrameRate = 1789773.0 / 29780.5;
+        private const double SecondsPerFrame = 1.0 / NtscFrameRate;
+        private double _frameTimeAccumulator;
 
         public bool IsRunning => _isRunning;
         public bool HasLoadedRom => _hasLoadedRom;
@@ -30,6 +37,7 @@ namespace SevenNes.Integration
             _screenTexture = new Texture2D(256, 240, TextureFormat.RGBA32, false);
             _screenTexture.filterMode = FilterMode.Point;
             _colorBuffer = new Color32[256 * 240];
+            InitAudio();
             RefreshRomList();
         }
 
@@ -57,6 +65,9 @@ namespace SevenNes.Integration
                 _nes.LoadRom(_romFiles[index]);
                 _isRunning = true;
                 _hasLoadedRom = true;
+                _frameTimeAccumulator = 0;
+                if (_audioPlayer != null)
+                    _audioPlayer.SetActive(true);
                 Log.Out($"[7nes] Loaded ROM: {Path.GetFileNameWithoutExtension(_romFiles[index])}");
                 return true;
             }
@@ -86,21 +97,38 @@ namespace SevenNes.Integration
         {
             if (!_isRunning) return;
 
-            try
+            _frameTimeAccumulator += Time.deltaTime;
+
+            // Clamp accumulator to prevent spiral-of-death (max 3 frames catch-up)
+            if (_frameTimeAccumulator > SecondsPerFrame * 3)
+                _frameTimeAccumulator = SecondsPerFrame * 3;
+
+            bool ran = false;
+            while (_frameTimeAccumulator >= SecondsPerFrame)
             {
-                _nes.RunFrame();
+                _frameTimeAccumulator -= SecondsPerFrame;
+                try
+                {
+                    _nes.RunFrame();
+                    ran = true;
+                }
+                catch (Exception ex)
+                {
+                    Log.Error($"[7nes] Emulator error: {ex.Message}");
+                    _isRunning = false;
+                    return;
+                }
+            }
+
+            if (ran)
                 UpdateTexture();
-            }
-            catch (Exception ex)
-            {
-                Log.Error($"[7nes] Emulator error: {ex.Message}");
-                _isRunning = false;
-            }
         }
 
         public void Stop()
         {
             _isRunning = false;
+            if (_audioPlayer != null)
+                _audioPlayer.SetActive(false);
         }
 
         public bool Resume()
@@ -108,6 +136,9 @@ namespace SevenNes.Integration
             if (_hasLoadedRom)
             {
                 _isRunning = true;
+                _frameTimeAccumulator = 0;
+                if (_audioPlayer != null)
+                    _audioPlayer.SetActive(true);
                 return true;
             }
             return false;
@@ -123,6 +154,22 @@ namespace SevenNes.Integration
         public void SetButton(int button, bool pressed)
         {
             _nes?.Controller1?.SetButton(button, pressed);
+        }
+
+        private void InitAudio()
+        {
+            try
+            {
+                _audioObject = new GameObject("7nes_Audio");
+                UnityEngine.Object.DontDestroyOnLoad(_audioObject);
+                _audioPlayer = _audioObject.AddComponent<NesAudioPlayer>();
+                _audioPlayer.Init(_nes.Apu);
+                _audioPlayer.SetActive(false);
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"[7nes] Failed to initialize audio: {ex.Message}");
+            }
         }
 
         private void UpdateTexture()
