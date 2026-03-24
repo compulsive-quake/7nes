@@ -44,17 +44,28 @@ public class SetupNESPrefab
         // Set layer and tag for 7DTD
         instance.isStatic = true;
 
-        // Add a box collider if none exists
-        if (instance.GetComponent<Collider>() == null)
+        // Add colliders to mesh children for detailed hit detection
+        foreach (var meshFilter in instance.GetComponentsInChildren<MeshFilter>())
         {
-            // Add colliders to all mesh children
-            foreach (var meshFilter in instance.GetComponentsInChildren<MeshFilter>())
+            if (meshFilter.GetComponent<Collider>() == null)
             {
-                if (meshFilter.GetComponent<Collider>() == null)
-                {
-                    meshFilter.gameObject.AddComponent<MeshCollider>();
-                }
+                meshFilter.gameObject.AddComponent<MeshCollider>();
             }
+        }
+
+        // Add a BoxCollider to the root so 7DTD's block interaction raycast can hit it
+        if (instance.GetComponent<BoxCollider>() == null)
+        {
+            Bounds rootBounds = new Bounds(Vector3.zero, Vector3.zero);
+            bool rbInit = false;
+            foreach (var r in instance.GetComponentsInChildren<Renderer>())
+            {
+                if (!rbInit) { rootBounds = r.bounds; rbInit = true; }
+                else rootBounds.Encapsulate(r.bounds);
+            }
+            var box = instance.AddComponent<BoxCollider>();
+            box.center = instance.transform.InverseTransformPoint(rootBounds.center);
+            box.size = rootBounds.size;
         }
 
         // Position model so its bottom sits at ground level (y=0)

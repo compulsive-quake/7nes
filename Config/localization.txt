@@ -8,4 +8,6 @@ blockcommand_turn_on,blocks,Block,FALSE,FALSE,Turn On
 blockcommand_turn_off,blocks,Block,FALSE,FALSE,Turn Off
 blockcommand_controls,blocks,Block,FALSE,FALSE,Controls
 nesConsole,blocks,Block,FALSE,FALSE,NES Console
-nesConsole_desc,blocks,Block,FALSE,FALSE,A decorative Nintendo Entertainment System console.
+nesConsole_desc,blocks,Block,FALSE,FALSE,A Nintendo Entertainment System console. Insert a game cartridge to play!
+nesConsole_activate,blocks,Block,FALSE,FALSE,Open NES Console
+xuiNesCartridgeSlot,blocks,Block,FALSE,FALSE,Cartridge Slot

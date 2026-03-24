@@ -7,6 +7,9 @@ public class BuildAssetBundle
     [MenuItem("7nes/Build Asset Bundle")]
     public static void Build()
     {
+        // Ensure NES console prefab has a root BoxCollider before building
+        EnsureConsoleCollider();
+
         string outputPath = Path.Combine(Application.dataPath, "../../Resources");
         if (!Directory.Exists(outputPath))
             Directory.CreateDirectory(outputPath);
@@ -42,5 +45,43 @@ public class BuildAssetBundle
         }
 
         Debug.Log("7nes asset bundle build complete!");
+    }
+
+    static void EnsureConsoleCollider()
+    {
+        string prefabPath = "Assets/NESModel/NESConsolePrefab.prefab";
+        var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath);
+        if (prefab == null)
+        {
+            Debug.LogWarning("NESConsolePrefab not found, skipping collider setup");
+            return;
+        }
+
+        if (prefab.GetComponent<BoxCollider>() != null)
+        {
+            Debug.Log("NESConsolePrefab already has root BoxCollider");
+            return;
+        }
+
+        // Edit prefab contents through Unity's proper API
+        var contents = PrefabUtility.LoadPrefabContents(prefabPath);
+
+        // Calculate bounds from all renderers
+        Bounds bounds = new Bounds(Vector3.zero, Vector3.zero);
+        bool init = false;
+        foreach (var r in contents.GetComponentsInChildren<Renderer>())
+        {
+            if (!init) { bounds = r.bounds; init = true; }
+            else bounds.Encapsulate(r.bounds);
+        }
+
+        var box = contents.AddComponent<BoxCollider>();
+        box.center = contents.transform.InverseTransformPoint(bounds.center);
+        box.size = bounds.size;
+
+        PrefabUtility.SaveAsPrefabAsset(contents, prefabPath);
+        PrefabUtility.UnloadPrefabContents(contents);
+
+        Debug.Log($"Added root BoxCollider to NESConsolePrefab: center={box.center}, size={box.size}");
     }
 }

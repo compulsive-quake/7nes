@@ -2,14 +2,36 @@
 
 ## Project Overview
 
-7nes is a 7 Days to Die mod that adds an NES emulator TV block to the game. Players can craft and place the NES TV block, then interact with it to launch a fully functional NES emulator overlay. Load your own .nes ROM files and play classic NES games inside 7 Days to Die.
+7nes is a 7 Days to Die mod that adds a playable NES emulator to the game. Players place an NES TV block (the screen) and an NES Console block (the cartridge slot), connect power, and insert game cartridge items to play classic NES games inside 7 Days to Die.
 
 ## Architecture
 
 - **C# Harmony mod** that patches into 7 Days to Die at runtime
 - **Embedded NES emulator** that renders frames to a Unity `Texture2D`
-- The emulator output is displayed via an XUi window overlay (`nesEmulator`) when the player activates the TV block
+- The emulator output is displayed on an in-world screen quad attached to the nesTV block, with an IMGUI overlay for ROM selection and controls
 - Input is captured from Unity's `Input` system and mapped to NES controller buttons
+
+## In-Game Objects
+
+### nesTV (Block)
+- **Class:** `Powered` (extends `tvSmallStand1x1`)
+- **Purpose:** The screen that displays emulator output. Requires 5 power via wire tool.
+- **Interaction:** Hold E for radial menu with Play, Choose Game, Turn On/Off, Controls options. Harmony patches on `BlockPowered` handle all interaction (see `BlockInteractionPatch.cs`).
+- **Display:** Emulator frames render to a Unity quad positioned on the TV's screen face, calibrated per rotation.
+
+### nesConsole (Block)
+- **Class:** `Workstation`
+- **Purpose:** The NES console unit where players insert game cartridges.
+- **Interaction:** Press E to open a workstation UI with a single tool slot ("CARTRIDGE SLOT") for inserting cartridge items.
+- **Config:** Uses `Modules="tools,output"`, `ToolNames="1"`, `CraftingAreaRecipes="nesConsole"` (no actual recipes — the crafting list is intentionally empty).
+- **XUi:** Window group `workstation_nesConsole` defined in `Config/XUi/xui.xml`, with custom tool slot window `windowNesConsoleSlot` in `Config/XUi/windows.xml`.
+
+### nesCart_* (Items — dynamically generated)
+- **Generation:** `NesCartridgeItems.cs` scans `Roms/` at mod init and generates `Config/items.xml` with one item per `.nes` ROM file.
+- **Naming:** ROM filename is sanitized into item name (e.g., `Contra (USA).nes` → `nesCart_ContraUSA`).
+- **Model:** Uses the NES cartridge prefab from `Resources/nescartridge.unity3d`.
+- **Icons:** Box art PNGs from `Roms/box/` are copied to `UIAtlases/ItemIconAtlas/` as custom icons.
+- **Hand adjustments:** `CartridgeHandAdjuster.cs` fixes scale/material when held, `CartridgeMaterialFixer.cs` fixes cart label textures.
 
 ## Mod Structure
 
@@ -19,9 +41,14 @@
 ├── ModInfo.xml               # Mod metadata for 7DTD mod loader
 ├── .gitignore                # Git ignore rules
 ├── Config/
-│   ├── blocks.xml            # XPath patch adding the nesTV block
+│   ├── blocks.xml            # XPath patch: nesTV and nesConsole blocks
+│   ├── items.xml             # Auto-generated: cartridge items (one per ROM)
+│   ├── loot.xml              # Loot container for nesConsole storage
 │   ├── localization.txt      # Display names and descriptions
-│   └── windows.xml           # XUi window definition for emulator overlay
+│   ├── windows.xml           # XUi window definition for emulator overlay
+│   └── XUi/
+│       ├── windows.xml       # Workstation tool slot window (nesConsole)
+│       └── xui.xml           # Window group for nesConsole workstation
 ├── src/
 │   ├── 7nes.csproj           # C# project file
 │   ├── Core/
@@ -36,18 +63,29 @@
 │   │   ├── Mapper2.cs        # UxROM (PRG bank switching)
 │   │   └── Mapper3.cs        # CNROM (CHR bank switching)
 │   └── Integration/
-│       ├── ModInit.cs        # IModApi entry point, Harmony patching
+│       ├── ModInit.cs             # IModApi entry point, Harmony patching
 │       ├── NesEmulatorManager.cs  # Singleton: emulator + Texture2D rendering
-│       ├── NesEmulatorWindow.cs   # IMGUI overlay: screen + ROM selector
-│       ├── NesCartridgeItems.cs   # Dynamic item generation from ROMs
-│       └── BlockInteractionPatch.cs # Harmony patches for nesTV block
+│       ├── NesEmulatorWindow.cs   # IMGUI overlay: screen + ROM selector + controls rebind
+│       ├── NesInputBindings.cs    # Configurable keyboard/gamepad bindings
+│       ├── NesAudioPlayer.cs      # Unity AudioSource for APU output
+│       ├── NesCartridgeItems.cs   # Dynamic item/icon generation from ROMs
+│       ├── CartridgeHandAdjuster.cs   # Fix held cartridge scale/material
+│       ├── CartridgeMaterialFixer.cs  # Fix cart label textures at runtime
+│       └── BlockInteractionPatch.cs   # Harmony patches for nesTV block interaction
+├── UnityProject/              # Unity project for building asset bundles
+│   └── Assets/
+│       └── NESModel/          # NES console 3D model and prefab
+├── Resources/
+│   ├── nescartridge.unity3d   # Cartridge model asset bundle
+│   └── nesmodel.unity3d       # NES console model asset bundle
 ├── UIAtlases/
-│   └── UIAtlas/              # Custom UI sprites (auto-loaded by game)
-│       └── nes_cartridge.png # NES cartridge icon for radial menu
-├── Roms/                     # Place .nes ROM files here (not tracked in git)
-│   ├── box/                  # Box art PNGs (filename matches ROM name)
-│   └── Cart/                 # Cart label art PNGs
-└── 7nes.dll                  # Compiled mod assembly (build output)
+│   ├── UIAtlas/               # Custom UI sprites (radial menu icons)
+│   │   └── nes_cartridge.png
+│   └── ItemIconAtlas/         # Auto-generated cartridge item icons
+├── Roms/                      # Place .nes ROM files here (not tracked in git)
+│   ├── box/                   # Box art PNGs (filename matches ROM name)
+│   └── Cart/                  # Cart label art PNGs
+└── 7nes.dll                   # Compiled mod assembly (build output)
 ```
 
 ## Supported Mappers
@@ -61,11 +99,12 @@
 
 1. Build the mod (`dotnet build` in src/)
 2. Copy 7nes folder to `7 Days to Die/Mods/`
-3. Place `.nes` ROM files in `Mods/7nes/Roms/`
-4. In-game: find "NES TV" in creative menu or craft it
-5. Place the TV block and press **E** to open the emulator
-6. Select a ROM from the list, then play
-7. Press **Tab** to switch ROMs, **F5** to reset, **Escape** to close
+3. Place `.nes` ROM files in `Mods/7nes/Roms/` (each ROM auto-generates a cartridge item)
+4. In-game: find "NES TV", "NES Console", and cartridge items in the creative menu
+5. Place the **NES TV** block and connect it to power (requires 5W via wire tool)
+6. Place the **NES Console** block nearby, press **E** to open the cartridge slot, and insert a cartridge item
+7. Interact with the **NES TV**: press **E** to play, or hold **E** for the radial menu (Choose Game, Turn On/Off, Controls)
+8. Press **Tab** to switch ROMs, **F5** to reset, **E** to exit play mode
 
 ## Build Instructions
 

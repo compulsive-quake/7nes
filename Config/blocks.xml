@@ -12,18 +12,25 @@
         </block>
         <block name="nesConsole">
             <property name="CreativeMode" value="Player"/>
-            <property name="Class" value="Block"/>
+            <property name="Class" value="Workstation"/>
+            <property class="Workstation">
+                <property name="Modules" value="tools,output"/>
+                <property name="CraftingAreaRecipes" value="nesConsole"/>
+                <property name="ToolNames" value="1"/>
+            </property>
             <property name="CustomIcon" value="nesTV"/>
-            <property name="Shape" value="ModelEntity"/>
-            <property name="Model" value="#@modfolder:Resources/nesmodel.unity3d?Assets/NESModel/NESConsolePrefab.prefab"/>
-            <property name="ModelOffset" value="0,0,0"/>
+            <property name="WorkstationIcon" value="nesTV"/>
+            <property name="Shape" value="New"/>
+            <property name="Model" value="@:Shapes/Cube_A.fbx"/>
+            <property name="Texture" value="65"/>
             <property name="Material" value="MelectricParts"/>
-            <property name="Collide" value="movement,melee,bullet,arrow,rocket"/>
-            <property name="IsTerrainDecoration" value="true"/>
-            <property name="StabilitySupport" value="false"/>
+            <property name="MaxDamage" value="500"/>
             <property name="Place" value="TowardsPlacerInverted"/>
+            <property name="Stacknumber" value="1"/>
             <property name="DisplayInfo" value="Name"/>
             <property name="DescriptionKey" value="nesConsole_desc"/>
+            <property name="OpenSound" value="UseActions/open_safe"/>
+            <property name="CloseSound" value="UseActions/close_safe"/>
         </block>
     </append>
 </configs>

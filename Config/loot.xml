@@ -1,0 +1,7 @@
+<configs>
+    <append xpath="/lootcontainers">
+        <lootcontainer name="nesConsoleStorage" count="0" size="5,2" sound_open="UseActions/open_safe" sound_close="UseActions/close_safe" open_time="0.5" loot_quality_template="qualBaseTemplate">
+            <item name="cobweb" count="0"/>
+        </lootcontainer>
+    </append>
+</configs>

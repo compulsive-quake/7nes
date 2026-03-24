@@ -223,6 +223,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 1875092531852506894}
+  - component: {fileID: 4278974110162993820}
   m_Layer: 0
   m_Name: NESConsolePrefab
   m_TagString: Untagged
@@ -246,6 +247,27 @@ Transform:
   - {fileID: 7645731548315756219}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!65 &4278974110162993820
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4278974110162993819}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 0.3838994, y: 0.13850647, z: 0.3070794}
+  m_Center: {x: 0.000000014901161, y: 0, z: -0.014997616}
 --- !u!1 &7300090332873157410
 GameObject:
   m_ObjectHideFlags: 0

@@ -32,6 +32,11 @@ namespace SevenNes.Integration
             var harmony = new Harmony("com.7nes.nesemulator");
             harmony.PatchAll(Assembly.GetExecutingAssembly());
 
+            // Create CartridgeHandAdjuster to fix held cartridge scale/material at runtime
+            var adjusterGo = new GameObject("7nes_CartridgeHandAdjuster");
+            UnityEngine.Object.DontDestroyOnLoad(adjusterGo);
+            adjusterGo.AddComponent<CartridgeHandAdjuster>();
+
             Log.Out("[7nes] NES Emulator TV mod loaded!");
             Log.Out($"[7nes] ROM directory: {RomsPath}");
 

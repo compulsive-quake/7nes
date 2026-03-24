@@ -22,10 +22,14 @@ New-Item -ItemType Directory -Path "$ModDest\Roms" -Force | Out-Null
 Write-Host "Deploying to: $ModDest"
 
 Copy-Item "$ScriptDir\ModInfo.xml" "$ModDest\" -Force
-Copy-Item "$ScriptDir\7nes.dll" "$ModDest\" -Force
-Copy-Item "$ScriptDir\Config\blocks.xml" "$ModDest\Config\" -Force
-Copy-Item "$ScriptDir\Config\windows.xml" "$ModDest\Config\" -Force
-Copy-Item "$ScriptDir\Config\localization.txt" "$ModDest\Config\" -Force
+Copy-Item "$ScriptDir\Config\*" "$ModDest\Config\" -Recurse -Force
+
+# Copy DLL (may fail if game is running and has the file locked)
+try {
+    Copy-Item "$ScriptDir\7nes.dll" "$ModDest\" -Force
+} catch {
+    Write-Host "WARNING: Could not copy 7nes.dll (game may be running). Restart the game and re-deploy." -ForegroundColor Yellow
+}
 
 # Copy Resources (asset bundles) if present
 $ResourcesDir = Join-Path $ScriptDir "Resources"
