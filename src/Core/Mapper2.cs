@@ -73,5 +73,7 @@ namespace SevenNes.Core
                 }
             }
         }
+
+        public void NotifyScanline() { }
     }
 }

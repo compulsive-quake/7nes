@@ -1,39 +1,31 @@
 namespace SevenNes.Core
 {
-    public class Mapper3 : IMapper
+    /// <summary>
+    /// Mapper 34 (BNROM/NINA-001). 32KB PRG switching.
+    /// Used by Deadly Towers, Impossible Mission II.
+    /// </summary>
+    public class Mapper34 : IMapper
     {
         private readonly Cartridge _cartridge;
-        private byte _bankSelect;
+        private int _prgBank;
+        private int _chrBank0, _chrBank1;
 
-        public Mapper3(Cartridge cartridge)
+        public Mapper34(Cartridge cartridge)
         {
             _cartridge = cartridge;
-            _bankSelect = 0;
         }
 
         public byte CpuRead(ushort address)
         {
             if (address >= 0x6000 && address <= 0x7FFF)
-            {
                 return _cartridge.PrgRam[address & 0x1FFF];
-            }
 
-            if (address >= 0x8000 && address <= 0xBFFF)
+            if (address >= 0x8000)
             {
-                return _cartridge.PrgRom[address & 0x3FFF];
+                int offset = _prgBank * 0x8000 + (address & 0x7FFF);
+                if (offset < _cartridge.PrgRom.Length)
+                    return _cartridge.PrgRom[offset];
             }
-
-            if (address >= 0xC000 && address <= 0xFFFF)
-            {
-                // Mirror first bank if only one PRG bank, otherwise use last bank
-                int offset;
-                if (_cartridge.PrgBanks == 1)
-                    offset = address & 0x3FFF;
-                else
-                    offset = (_cartridge.PrgBanks - 1) * 0x4000 + (address & 0x3FFF);
-                return _cartridge.PrgRom[offset];
-            }
-
             return 0;
         }
 
@@ -42,12 +34,21 @@ namespace SevenNes.Core
             if (address >= 0x6000 && address <= 0x7FFF)
             {
                 _cartridge.PrgRam[address & 0x1FFF] = value;
+
+                // NINA-001 variant: register writes in PRG RAM space
+                if (address == 0x7FFD)
+                    _prgBank = value & 0x01;
+                else if (address == 0x7FFE)
+                    _chrBank0 = value & 0x0F;
+                else if (address == 0x7FFF)
+                    _chrBank1 = value & 0x0F;
                 return;
             }
 
             if (address >= 0x8000)
             {
-                _bankSelect = (byte)(value & 0x03);
+                // BNROM: simple PRG bank switch
+                _prgBank = value & 0x03;
             }
         }
 
@@ -55,19 +56,16 @@ namespace SevenNes.Core
         {
             if (address <= 0x1FFF)
             {
-                int offset = _bankSelect * 0x2000 + (address & 0x1FFF);
                 if (_cartridge.ChrRom != null && _cartridge.ChrRom.Length > 0)
                 {
+                    int bank = address < 0x1000 ? _chrBank0 : _chrBank1;
+                    int offset = bank * 0x1000 + (address & 0x0FFF);
                     if (offset < _cartridge.ChrRom.Length)
                         return _cartridge.ChrRom[offset];
                     return 0;
                 }
-                else
-                {
-                    return _cartridge.ChrRam[offset & 0x1FFF];
-                }
+                return _cartridge.ChrRam[address & 0x1FFF];
             }
-
             return 0;
         }
 
@@ -76,10 +74,7 @@ namespace SevenNes.Core
             if (address <= 0x1FFF)
             {
                 if (_cartridge.ChrRom == null || _cartridge.ChrRom.Length == 0)
-                {
-                    int offset = _bankSelect * 0x2000 + (address & 0x1FFF);
-                    _cartridge.ChrRam[offset & 0x1FFF] = value;
-                }
+                    _cartridge.ChrRam[address & 0x1FFF] = value;
             }
         }
 

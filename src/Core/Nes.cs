@@ -75,8 +75,8 @@ namespace SevenNes.Core
                         if (Ppu.FrameComplete)
                             break;
                     }
-                    // Set IRQ from APU
-                    if (Apu.IrqPending)
+                    // Set IRQ from APU or mapper
+                    if (Apu.IrqPending || Cartridge.IrqPending)
                         Cpu.IrqPending = true;
                 }
             }

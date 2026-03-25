@@ -11,3 +11,4 @@ nesConsole,blocks,Block,FALSE,FALSE,NES Console
 nesConsole_desc,blocks,Block,FALSE,FALSE,A Nintendo Entertainment System console. Insert a game cartridge to play!
 nesConsole_activate,blocks,Block,FALSE,FALSE,Open NES Console
 xuiNesCartridgeSlot,blocks,Block,FALSE,FALSE,Cartridge Slot
+xuiNesConsoleTitle,blocks,Block,FALSE,FALSE,Nintendo Entertainment Console

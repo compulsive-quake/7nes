@@ -14,6 +14,7 @@ namespace SevenNes.Core
         public int PrgBanks;
         public int ChrBanks;
         public IMapper Mapper;
+        public bool IrqPending;
 
         public void Load(byte[] romData)
         {
@@ -67,6 +68,7 @@ namespace SevenNes.Core
 
             // Initialize PRG RAM
             PrgRam = new byte[8192];
+            IrqPending = false;
 
             // Create mapper
             switch (MapperNumber)
@@ -82,6 +84,34 @@ namespace SevenNes.Core
                     break;
                 case 3:
                     Mapper = new Mapper3(this);
+                    break;
+                case 4:
+                case 206:
+                    Mapper = new Mapper4(this, MapperNumber == 206);
+                    break;
+                case 7:
+                    Mapper = new Mapper7(this);
+                    break;
+                case 9:
+                    Mapper = new Mapper9(this);
+                    break;
+                case 10:
+                    Mapper = new Mapper10(this);
+                    break;
+                case 11:
+                    Mapper = new Mapper11(this);
+                    break;
+                case 34:
+                    Mapper = new Mapper34(this);
+                    break;
+                case 66:
+                    Mapper = new Mapper66(this);
+                    break;
+                case 69:
+                    Mapper = new Mapper69(this);
+                    break;
+                case 71:
+                    Mapper = new Mapper71(this);
                     break;
                 default:
                     throw new NotSupportedException($"Mapper {MapperNumber} is not supported");

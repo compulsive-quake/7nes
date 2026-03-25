@@ -340,6 +340,13 @@ namespace SevenNes.Core
                 }
             }
 
+            // Notify mapper of scanline for IRQ counting (at cycle 260, visible + pre-render)
+            if (Cycle == 260 && IsRenderingEnabled() &&
+                ((Scanline >= 0 && Scanline <= 239) || Scanline == 261))
+            {
+                _nes.Cartridge.Mapper.NotifyScanline();
+            }
+
             // Pre-render scanline (261)
             if (Scanline == 261)
             {

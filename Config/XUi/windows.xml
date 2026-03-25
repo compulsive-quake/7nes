@@ -13,5 +13,17 @@
                 </grid>
             </rect>
         </window>
+        <window name="windowNesConsoleInfo" width="530" height="420" panel="Center" cursor_area="true">
+            <panel style="header.panel">
+                <sprite style="header.icon" sprite="ui_game_symbol_wrench"/>
+                <label style="header.name" text="Nintendo Entertainment Console" text_key="xuiNesConsoleTitle"/>
+            </panel>
+            <rect depth="0" pos="0,-46" height="374">
+                <sprite depth="-2" pos="0,0" height="374" width="530" color="[medGrey]" sprite="menu_empty" type="sliced"/>
+                <label pos="16,-16" width="498" height="342" depth="1"
+                       text="Place NES Console within one block of the NES TV\nWire power to TV\nWire power to NES\nAdd game to cartridge slot"
+                       font_size="24" color="[nearWhite]" justify="left" overflow="ClampContent"/>
+            </rect>
+        </window>
     </append>
 </configs>

@@ -32,6 +32,7 @@ namespace SevenNes.Integration
         public Texture2D ScreenTexture => _screenTexture;
         public string CurrentRomName => _nes?.CurrentRomName ?? "No ROM";
         public string CurrentRomItemName => _currentRomItemName;
+        public string LastLoadError { get; private set; }
 
         public NesEmulatorManager()
         {
@@ -68,6 +69,7 @@ namespace SevenNes.Integration
                 _isRunning = true;
                 _hasLoadedRom = true;
                 _frameTimeAccumulator = 0;
+                LastLoadError = null;
                 if (_audioPlayer != null)
                     _audioPlayer.SetActive(true);
                 Log.Out($"[7nes] Loaded ROM: {Path.GetFileNameWithoutExtension(_romFiles[index])}");
@@ -75,7 +77,9 @@ namespace SevenNes.Integration
             }
             catch (Exception ex)
             {
-                Log.Error($"[7nes] Failed to load ROM: {ex.Message}");
+                string romName = Path.GetFileNameWithoutExtension(_romFiles[index]);
+                LastLoadError = $"{romName}: {ex.Message}";
+                Log.Error($"[7nes] Failed to load ROM '{romName}': {ex.Message}");
                 _isRunning = false;
                 return false;
             }

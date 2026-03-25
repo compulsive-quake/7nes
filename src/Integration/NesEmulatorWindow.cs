@@ -8,7 +8,7 @@ namespace SevenNes.Integration
         private static NesEmulatorWindow _instance;
 
         // === STATE ===
-        private enum UIState { Closed, Playing, Controls }
+        private enum UIState { Closed, Playing, Controls, NoSignalCalibrate }
         private UIState _uiState = UIState.Closed;
         private bool _tvOn; // TV is powered on (screen quad visible, emulator runs in background)
 
@@ -217,6 +217,10 @@ namespace SevenNes.Integration
                         SetUIState(UIState.Playing);
                         return;
                     }
+                    else if (_manager.LastLoadError != null)
+                    {
+                        ShowNotification(_manager.LastLoadError, 5f);
+                    }
                 }
             }
 
@@ -235,7 +239,7 @@ namespace SevenNes.Integration
                 _tvOn = true;
                 EnsureScreenQuad();
                 UpdateScreenMaterial();
-                ShowNotification("Insert a game cartridge into a nearby NES Console");
+                SetUIState(UIState.NoSignalCalibrate);
             }
         }
 
@@ -378,6 +382,12 @@ namespace SevenNes.Integration
                     Cursor.visible = false;
                     Cursor.lockState = CursorLockMode.Locked;
                     break;
+                case UIState.NoSignalCalibrate:
+                    LockPlayer();
+                    SetHUDVisible(false);
+                    Cursor.visible = false;
+                    Cursor.lockState = CursorLockMode.Locked;
+                    break;
             }
         }
 
@@ -462,9 +472,10 @@ namespace SevenNes.Integration
             UpdateQuadTransform();
         }
 
-        // No-signal screen fills the entire TV model
-        private const float NoSignalWidth = 1.50f;
-        private const float NoSignalVerticalOffset = 0.080f;
+        // No-signal screen calibration (adjustable at runtime via numpad)
+        private float _noSignalNormalOffset = 0.250f;
+        private float _noSignalVerticalOffset = 0.050f;
+        private float _noSignalWidth = 1.48f;
 
         private void UpdateQuadTransform()
         {
@@ -472,9 +483,9 @@ namespace SevenNes.Integration
 
             bool showingNoSignal = !_manager.HasLoadedRom;
 
-            float normalOffset = _calibration[_currentYaw, 0];
-            float verticalOffset = showingNoSignal ? NoSignalVerticalOffset : _calibration[_currentYaw, 1];
-            float screenWidth = showingNoSignal ? NoSignalWidth : _calibration[_currentYaw, 2];
+            float normalOffset = showingNoSignal ? _noSignalNormalOffset : _calibration[_currentYaw, 0];
+            float verticalOffset = showingNoSignal ? _noSignalVerticalOffset : _calibration[_currentYaw, 1];
+            float screenWidth = showingNoSignal ? _noSignalWidth : _calibration[_currentYaw, 2];
 
             Vector3 screenCenter = _blockCenter + _screenNormal * normalOffset + Vector3.up * verticalOffset;
             _screenQuad.transform.position = screenCenter;
@@ -569,20 +580,27 @@ namespace SevenNes.Integration
                 return;
             }
 
-            // E closes play mode
-            if (_uiState == UIState.Playing && Input.GetKeyDown(KeyCode.E))
+            // E closes play mode or no-signal calibration
+            if ((_uiState == UIState.Playing || _uiState == UIState.NoSignalCalibrate) && Input.GetKeyDown(KeyCode.E))
             {
-                // Exit play mode — TV stays on in background
                 ClearControllerInput();
                 _tvOn = true;
                 _closeCooldown = CloseCooldownDuration;
-                Log.Out($"[7nes-calibrate] FINAL VALUES (yaw {_currentYaw}): normalOffset={_calibration[_currentYaw, 0]:F3}  verticalOffset={_calibration[_currentYaw, 1]:F3}  screenWidth={_calibration[_currentYaw, 2]:F3}  flip={_flipHorizontal[_currentYaw]}");
+                if (_uiState == UIState.Playing)
+                    Log.Out($"[7nes-calibrate] FINAL VALUES (yaw {_currentYaw}): normalOffset={_calibration[_currentYaw, 0]:F3}  verticalOffset={_calibration[_currentYaw, 1]:F3}  screenWidth={_calibration[_currentYaw, 2]:F3}  flip={_flipHorizontal[_currentYaw]}");
+                else
+                    Log.Out($"[7nes-calibrate] NO-SIGNAL FINAL VALUES: normalOffset={_noSignalNormalOffset:F3}  verticalOffset={_noSignalVerticalOffset:F3}  width={_noSignalWidth:F3}");
                 SetUIState(UIState.Closed);
             }
 
             if (_uiState == UIState.Playing)
             {
                 UpdatePlaying();
+            }
+
+            if (_uiState == UIState.NoSignalCalibrate)
+            {
+                UpdateNoSignalCalibrate();
             }
         }
 
@@ -650,6 +668,24 @@ namespace SevenNes.Integration
             _manager.RunFrame();
         }
 
+        private void UpdateNoSignalCalibrate()
+        {
+            bool changed = false;
+
+            if (Input.GetKeyDown(KeyCode.Keypad8)) { _noSignalVerticalOffset += OffsetStep; changed = true; }
+            if (Input.GetKeyDown(KeyCode.Keypad2)) { _noSignalVerticalOffset -= OffsetStep; changed = true; }
+            if (Input.GetKeyDown(KeyCode.Keypad6)) { _noSignalNormalOffset += OffsetStep; changed = true; }
+            if (Input.GetKeyDown(KeyCode.Keypad4)) { _noSignalNormalOffset -= OffsetStep; changed = true; }
+            if (Input.GetKeyDown(KeyCode.KeypadPlus))  { _noSignalWidth += ScaleStep; changed = true; }
+            if (Input.GetKeyDown(KeyCode.KeypadMinus)) { _noSignalWidth -= ScaleStep; changed = true; }
+
+            if (changed)
+            {
+                UpdateQuadTransform();
+                Log.Out($"[7nes-calibrate] NO-SIGNAL: normalOffset={_noSignalNormalOffset:F3}  verticalOffset={_noSignalVerticalOffset:F3}  width={_noSignalWidth:F3}");
+            }
+        }
+
         // === GUI RENDERING ===
         void InitStyles()
         {
@@ -693,6 +729,9 @@ namespace SevenNes.Integration
                     break;
                 case UIState.Controls:
                     DrawControlsDialog();
+                    break;
+                case UIState.NoSignalCalibrate:
+                    DrawNoSignalCalibrationHUD();
                     break;
             }
         }
@@ -871,6 +910,28 @@ namespace SevenNes.Integration
             GUI.Label(new Rect(0, hintY, Screen.width, hintHeight),
                 _bindings.GetControlsHintString(),
                 hintStyle);
+        }
+
+        void DrawNoSignalCalibrationHUD()
+        {
+            var hudStyle = new GUIStyle(GUI.skin.label);
+            hudStyle.fontSize = 16;
+            hudStyle.normal.textColor = Color.yellow;
+
+            float x = 10, y = 10, lineH = 22;
+
+            string[] yawNames = { "North", "East", "South", "West" };
+            GUI.Label(new Rect(x, y, 500, lineH), $"--- NO-SIGNAL CALIBRATION (Rotation {_currentYaw}: {yawNames[_currentYaw]}) ---", hudStyle);
+            y += lineH;
+            GUI.Label(new Rect(x, y, 500, lineH), $"Normal offset (in/out): {_noSignalNormalOffset:F3}  [Numpad 4/6]", hudStyle);
+            y += lineH;
+            GUI.Label(new Rect(x, y, 500, lineH), $"Vertical offset (up/dn): {_noSignalVerticalOffset:F3}  [Numpad 8/2]", hudStyle);
+            y += lineH;
+            GUI.Label(new Rect(x, y, 500, lineH), $"Screen width:            {_noSignalWidth:F3}  [Numpad +/-]", hudStyle);
+            y += lineH;
+            GUI.Label(new Rect(x, y, 500, lineH), "Step: 0.01 (offset) / 0.02 (width)", hudStyle);
+            y += lineH;
+            GUI.Label(new Rect(x, y, 500, lineH), "Press E to exit and log final values", hudStyle);
         }
 
         void DrawCalibrationHUD()

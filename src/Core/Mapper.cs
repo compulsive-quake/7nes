@@ -6,5 +6,6 @@ namespace SevenNes.Core
         void CpuWrite(ushort address, byte value);
         byte PpuRead(ushort address);
         void PpuWrite(ushort address, byte value);
+        void NotifyScanline();
     }
 }
