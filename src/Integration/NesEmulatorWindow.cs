@@ -150,6 +150,48 @@ namespace SevenNes.Integration
 
         // === PUBLIC API (called from Harmony patches) ===
 
+        /// Auto-show screen quad when TV is powered (called from GetActivationText patch)
+        public void AutoShowScreen(Vector3i blockPos, byte rotation, bool isPowered)
+        {
+            if (_uiState == UIState.Playing || _uiState == UIState.Controls)
+                return;
+
+            if (!isPowered)
+            {
+                if (_tvOn && _blockPos.Equals(blockPos))
+                {
+                    _tvOn = false;
+                    _lastCartridgeName = null;
+                    _manager.Stop();
+                    DestroyScreenQuad();
+                }
+                return;
+            }
+
+            // Already showing for this block
+            if (_tvOn && _screenQuad != null && _blockPos.Equals(blockPos))
+                return;
+
+            SetBlockInfo(blockPos, rotation);
+
+            // Check for cartridge
+            var world = GameManager.Instance?.World;
+            if (world != null)
+            {
+                string cartridge = CartridgeHelper.FindNearbyCartridge(world, 0, blockPos);
+                _lastCartridgeName = cartridge;
+                if (cartridge != null)
+                    _manager.LoadRomByItemName(cartridge);
+            }
+
+            if (_manager.HasLoadedRom)
+                _manager.Resume();
+
+            _tvOn = true;
+            EnsureScreenQuad();
+            UpdateScreenMaterial();
+        }
+
         /// Default E press: find cartridge in nearby nesConsole and play
         public void HandleActivate(Vector3i blockPos, byte rotation)
         {
@@ -178,7 +220,7 @@ namespace SevenNes.Integration
                 }
             }
 
-            // No cartridge found — resume if already loaded, otherwise notify
+            // No cartridge found — resume if already loaded, otherwise show no-signal screen
             if (_manager.HasLoadedRom)
             {
                 if (!_manager.IsRunning)
@@ -190,6 +232,9 @@ namespace SevenNes.Integration
             }
             else
             {
+                _tvOn = true;
+                EnsureScreenQuad();
+                UpdateScreenMaterial();
                 ShowNotification("Insert a game cartridge into a nearby NES Console");
             }
         }
@@ -286,6 +331,20 @@ namespace SevenNes.Integration
                 return;
             }
 
+            // Cartridge was inserted or swapped — auto-load
+            if (currentCartridge != null && currentCartridge != _lastCartridgeName)
+            {
+                Log.Out($"[7nes] Cartridge detected — auto-loading: {currentCartridge}");
+                _lastCartridgeName = currentCartridge;
+                if (_manager.LoadRomByItemName(currentCartridge))
+                {
+                    if (!_manager.IsRunning)
+                        _manager.Resume();
+                    UpdateScreenMaterial();
+                }
+                return;
+            }
+
             _lastCartridgeName = currentCartridge;
         }
 
@@ -293,6 +352,7 @@ namespace SevenNes.Integration
         {
             if (_screenMaterial == null) return;
             _screenMaterial.mainTexture = _manager.HasLoadedRom ? _manager.ScreenTexture : _noSignalTexture;
+            UpdateQuadTransform();
         }
 
         // === STATE MANAGEMENT ===
@@ -402,18 +462,32 @@ namespace SevenNes.Integration
             UpdateQuadTransform();
         }
 
+        // No-signal screen fills the entire TV model
+        private const float NoSignalWidth = 1.50f;
+        private const float NoSignalVerticalOffset = 0.080f;
+
         private void UpdateQuadTransform()
         {
             if (_screenQuad == null) return;
 
+            bool showingNoSignal = !_manager.HasLoadedRom;
+
             float normalOffset = _calibration[_currentYaw, 0];
-            float verticalOffset = _calibration[_currentYaw, 1];
-            float screenWidth = _calibration[_currentYaw, 2];
+            float verticalOffset = showingNoSignal ? NoSignalVerticalOffset : _calibration[_currentYaw, 1];
+            float screenWidth = showingNoSignal ? NoSignalWidth : _calibration[_currentYaw, 2];
 
             Vector3 screenCenter = _blockCenter + _screenNormal * normalOffset + Vector3.up * verticalOffset;
             _screenQuad.transform.position = screenCenter;
 
-            float screenHeight = screenWidth * (240f / 256f);
+            // Use the displayed texture's native aspect ratio
+            float aspectRatio = 240f / 256f;
+            if (_screenMaterial != null && _screenMaterial.mainTexture != null)
+            {
+                var tex = _screenMaterial.mainTexture;
+                if (tex.width > 0 && tex.height > 0)
+                    aspectRatio = (float)tex.height / tex.width;
+            }
+            float screenHeight = screenWidth * aspectRatio;
             float xScale = _flipHorizontal[_currentYaw] ? -screenWidth : screenWidth;
             _screenQuad.transform.localScale = new Vector3(xScale, screenHeight, 1f);
         }

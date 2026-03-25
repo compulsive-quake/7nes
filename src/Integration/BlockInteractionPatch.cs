@@ -49,6 +49,10 @@ namespace SevenNes.Integration
             if (__instance.GetBlockName() != "nesTV") return true;
 
             bool isPowered = PowerHelper.IsPowered(_world, _clrIdx, _blockPos);
+
+            // Auto-show screen quad when player looks at a powered TV
+            NesEmulatorWindow.Instance.AutoShowScreen(_blockPos, _blockValue.rotation, isPowered);
+
             if (isPowered)
                 __result = "Press [action:activate] to use NES TV";
             else

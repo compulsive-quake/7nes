@@ -35,7 +35,7 @@ try {
 $ResourcesDir = Join-Path $ScriptDir "Resources"
 if (Test-Path $ResourcesDir) {
     New-Item -ItemType Directory -Path "$ModDest\Resources" -Force | Out-Null
-    Copy-Item "$ResourcesDir\*.unity3d" "$ModDest\Resources\" -Force -ErrorAction SilentlyContinue
+    Copy-Item "$ResourcesDir\*" "$ModDest\Resources\" -Force -ErrorAction SilentlyContinue
     Write-Host "Copied asset bundles."
 }
 
