@@ -57,31 +57,29 @@ public class BuildAssetBundle
             return;
         }
 
-        if (prefab.GetComponent<BoxCollider>() != null)
-        {
-            Debug.Log("NESConsolePrefab already has root BoxCollider");
-            return;
-        }
-
-        // Edit prefab contents through Unity's proper API
         var contents = PrefabUtility.LoadPrefabContents(prefabPath);
 
-        // Calculate bounds from all renderers
-        Bounds bounds = new Bounds(Vector3.zero, Vector3.zero);
-        bool init = false;
-        foreach (var r in contents.GetComponentsInChildren<Renderer>())
+        // Remove all MeshColliders - non-convex ones cause lag and break 7DTD interaction
+        foreach (var mc in contents.GetComponentsInChildren<MeshCollider>())
         {
-            if (!init) { bounds = r.bounds; init = true; }
-            else bounds.Encapsulate(r.bounds);
+            Object.DestroyImmediate(mc);
+            Debug.Log("Removed MeshCollider from " + mc.gameObject.name);
         }
 
-        var box = contents.AddComponent<BoxCollider>();
-        box.center = contents.transform.InverseTransformPoint(bounds.center);
-        box.size = bounds.size;
+        // Verify BoxCollider exists (should be set by Setup script to match model bounds)
+        var box = contents.GetComponent<BoxCollider>();
+        if (box == null)
+        {
+            Debug.LogWarning("No BoxCollider on NESConsolePrefab root - run Setup NES Console Prefab first!");
+        }
+        else
+        {
+            Debug.Log($"BoxCollider OK: center={box.center}, size={box.size}");
+        }
 
         PrefabUtility.SaveAsPrefabAsset(contents, prefabPath);
         PrefabUtility.UnloadPrefabContents(contents);
 
-        Debug.Log($"Added root BoxCollider to NESConsolePrefab: center={box.center}, size={box.size}");
+        Debug.Log("NESConsolePrefab collider setup complete: single BoxCollider, no MeshColliders");
     }
 }

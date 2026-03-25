@@ -3,7 +3,9 @@
 --- !u!78 &1
 TagManager:
   serializedVersion: 2
-  tags: []
+  tags:
+  - T_Block
+  - T_Mesh_B
   layers:
   - Default
   - TransparentFX
