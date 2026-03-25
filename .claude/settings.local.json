@@ -13,7 +13,8 @@
       "Bash(grep -r \"Shape\" /c/Users/Richard/WebstormProjects/7KB/*.md)",
       "Bash(find /c/Users/Richard/WebstormProjects -name blocks.xml -o -name *block*.xml)",
       "Bash(grep -r \"CustomIcon\\\\|Meshfile\\\\|DropMeshfile\\\\|HoldType\\\\|Material\\\\|EconomicValue\\\\|Weight\" c:UsersRichardWebstormProjects7KB --include=*.md)",
-      "Bash(grep -l \"property\\\\|container\\\\|loot\\\\|Secure\" *.md)"
+      "Bash(grep -l \"property\\\\|container\\\\|loot\\\\|Secure\" *.md)",
+      "Bash(git worktree:*)"
     ]
   }
 }

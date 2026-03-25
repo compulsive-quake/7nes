@@ -41,32 +41,20 @@ public class SetupNESPrefab
             Debug.Log("Removed nesGamepad from prefab");
         }
 
-        // Set layer and tag for 7DTD
+        // Set tag and layer for 7DTD block interaction
+        instance.tag = "T_Block";
         instance.isStatic = true;
 
-        // Add colliders to mesh children for detailed hit detection
-        foreach (var meshFilter in instance.GetComponentsInChildren<MeshFilter>())
+        // Remove any colliders on child objects (MeshColliders break interaction)
+        foreach (var col in instance.GetComponentsInChildren<Collider>(true))
         {
-            if (meshFilter.GetComponent<Collider>() == null)
-            {
-                meshFilter.gameObject.AddComponent<MeshCollider>();
-            }
+            Object.DestroyImmediate(col);
         }
 
-        // Add a BoxCollider to the root so 7DTD's block interaction raycast can hit it
-        if (instance.GetComponent<BoxCollider>() == null)
-        {
-            Bounds rootBounds = new Bounds(Vector3.zero, Vector3.zero);
-            bool rbInit = false;
-            foreach (var r in instance.GetComponentsInChildren<Renderer>())
-            {
-                if (!rbInit) { rootBounds = r.bounds; rbInit = true; }
-                else rootBounds.Encapsulate(r.bounds);
-            }
-            var box = instance.AddComponent<BoxCollider>();
-            box.center = instance.transform.InverseTransformPoint(rootBounds.center);
-            box.size = rootBounds.size;
-        }
+        // Add a single full-block BoxCollider on the root for 7DTD's interaction raycast
+        var box = instance.AddComponent<BoxCollider>();
+        box.center = new Vector3(0, 0.5f, 0);
+        box.size = new Vector3(1f, 1f, 1f);
 
         // Position model so its bottom sits at ground level (y=0)
         Bounds bounds = new Bounds(Vector3.zero, Vector3.zero);
