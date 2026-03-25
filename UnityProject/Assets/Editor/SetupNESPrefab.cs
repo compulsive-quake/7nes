@@ -41,6 +41,7 @@ public class SetupNESPrefab
             Debug.Log("Removed nesGamepad from prefab");
         }
 
+<<<<<<< HEAD
         // Set tag and layer for 7DTD block interaction
         instance.tag = "T_Block";
         instance.isStatic = true;
@@ -55,6 +56,22 @@ public class SetupNESPrefab
         var box = instance.AddComponent<BoxCollider>();
         box.center = new Vector3(0, 0.5f, 0);
         box.size = new Vector3(1f, 1f, 1f);
+=======
+        // Set layer and tag for 7DTD
+        // T_Block tag is REQUIRED for 7DTD's interaction raycast in normal gameplay.
+        // Without it, the block is invisible to the raycast and "Press E" never appears.
+        // (The prefab editor uses voxel position lookup instead, so it works without the tag.)
+        instance.tag = "T_Block";
+        instance.isStatic = true;
+
+
+        // Remove any MeshColliders from children - non-convex MeshColliders cause
+        // massive lag in 7DTD and break block interaction raycasting
+        foreach (var col in instance.GetComponentsInChildren<MeshCollider>())
+        {
+            Object.DestroyImmediate(col);
+        }
+>>>>>>> 9f568d95f7960558d8144f2919d2740af559c795
 
         // Position model so its bottom sits at ground level (y=0)
         Bounds bounds = new Bounds(Vector3.zero, Vector3.zero);
@@ -81,6 +98,17 @@ public class SetupNESPrefab
             }
             Debug.Log($"Model bounds: {bounds.size}, shifted by {offset}");
         }
+
+        // Add a BoxCollider sized to a full block (1x1x1) for 7DTD's voxel raycast.
+        // In normal gameplay, the interaction raycast steps through voxels — if the
+        // collider is smaller than a block, the raycast won't register the block.
+        // The prefab editor uses a different system so it works there regardless.
+        var box = instance.GetComponent<BoxCollider>();
+        if (box == null)
+            box = instance.AddComponent<BoxCollider>();
+        box.center = new Vector3(0, 0.5f, 0);
+        box.size = new Vector3(1f, 1f, 1f);
+        Debug.Log($"BoxCollider set to full block size: center={box.center}, size={box.size}");
 
         // Apply existing materials
         SetupMaterials(instance);
