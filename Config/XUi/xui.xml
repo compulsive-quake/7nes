@@ -5,7 +5,6 @@
             <window name="craftingInfoPanel"/>
             <window name="windowCraftingQueue"/>
             <window name="windowNesConsoleSlot"/>
-            <window name="windowOutput"/>
             <window name="windowNonPagingHeader"/>
         </window_group>
     </append>

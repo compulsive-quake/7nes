@@ -17,6 +17,7 @@ namespace SevenNes.Integration
         private bool _hasLoadedRom;
         private string[] _romFiles;
         private int _currentRomIndex;
+        private string _currentRomItemName;
         private Color32[] _colorBuffer;
         private NesAudioPlayer _audioPlayer;
         private GameObject _audioObject;
@@ -30,6 +31,7 @@ namespace SevenNes.Integration
         public bool HasLoadedRom => _hasLoadedRom;
         public Texture2D ScreenTexture => _screenTexture;
         public string CurrentRomName => _nes?.CurrentRomName ?? "No ROM";
+        public string CurrentRomItemName => _currentRomItemName;
 
         public NesEmulatorManager()
         {
@@ -79,6 +81,33 @@ namespace SevenNes.Integration
             }
         }
 
+        public bool LoadRomByItemName(string itemName)
+        {
+            if (itemName == _currentRomItemName && _hasLoadedRom)
+                return true;
+
+            if (_romFiles == null || _romFiles.Length == 0)
+                RefreshRomList();
+
+            if (_romFiles == null) return false;
+
+            for (int i = 0; i < _romFiles.Length; i++)
+            {
+                if (NesCartridgeItems.GetItemName(_romFiles[i]) == itemName)
+                {
+                    if (LoadRom(i))
+                    {
+                        _currentRomItemName = itemName;
+                        return true;
+                    }
+                    return false;
+                }
+            }
+
+            Log.Warning($"[7nes] No ROM file found for cartridge: {itemName}");
+            return false;
+        }
+
         public bool LoadNextRom()
         {
             if (_romFiles == null || _romFiles.Length == 0) return false;
@@ -122,6 +151,16 @@ namespace SevenNes.Integration
 
             if (ran)
                 UpdateTexture();
+        }
+
+        public void UnloadRom()
+        {
+            _isRunning = false;
+            _hasLoadedRom = false;
+            _currentRomItemName = null;
+            if (_audioPlayer != null)
+                _audioPlayer.SetActive(false);
+            Log.Out("[7nes] ROM unloaded");
         }
 
         public void Stop()

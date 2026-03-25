@@ -15,7 +15,7 @@
             <property name="CreativeMode" value="Player"/>
             <property name="Class" value="Workstation"/>
             <property class="Workstation">
-                <property name="Modules" value="tools,output"/>
+                <property name="Modules" value="tools"/>
                 <property name="CraftingAreaRecipes" value="nesConsole"/>
                 <property name="ToolNames" value="1"/>
             </property>
@@ -23,6 +23,8 @@
             <property name="WorkstationIcon" value="nesTV"/>
             <property name="Shape" value="ModelEntity"/>
             <property name="Model" value="#@modfolder:Resources/nesmodel.unity3d?Assets/NESModel/NESConsolePrefab.prefab"/>
+            <property name="ModelOffset" value="0,0,0"/>
+            <property name="MultiBlockDim" value="1,1,1"/>
             <property name="Material" value="MelectricParts"/>
             <property name="Collide" value="movement,melee,bullet,arrow,rocket"/>
             <property name="MaxDamage" value="500"/>

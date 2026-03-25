@@ -24,10 +24,6 @@ namespace SevenNes.Integration
                     if (!isPowered) return false;
                     window.HandleActivate(_blockPos, _blockValue.rotation);
                     return false;
-                case "choose_game":
-                    if (!isPowered) return false;
-                    window.HandleChooseGame(_blockPos, _blockValue.rotation);
-                    return false;
                 case "turn_on":
                     if (!isPowered) return false;
                     window.HandleTurnOn(_blockPos, _blockValue.rotation);
@@ -96,8 +92,7 @@ namespace SevenNes.Integration
                 __result = new BlockActivationCommand[]
                 {
                     new BlockActivationCommand("play", "electric_switch", true),
-                    new BlockActivationCommand("choose_game", "nes_cartridge", true),
-                    new BlockActivationCommand(tvOn ? "turn_off" : "turn_on", "electric_switch", tvOn || hasRom),
+                    new BlockActivationCommand(tvOn ? "turn_off" : "turn_on", "electric_switch", true),
                     new BlockActivationCommand("controls", "electric_switch", true),
                     new BlockActivationCommand("take", "hand", true)
                 };
@@ -135,9 +130,6 @@ namespace SevenNes.Integration
             {
                 case "play":
                     window.HandleActivate(_blockPos, _blockValue.rotation);
-                    return false;
-                case "choose_game":
-                    window.HandleChooseGame(_blockPos, _blockValue.rotation);
                     return false;
                 case "turn_on":
                     window.HandleTurnOn(_blockPos, _blockValue.rotation);
@@ -200,12 +192,80 @@ namespace SevenNes.Integration
             __result = new BlockActivationCommand[]
             {
                 new BlockActivationCommand("play", "electric_switch", true),
-                new BlockActivationCommand("choose_game", "nes_cartridge", true),
-                new BlockActivationCommand(tvOn ? "turn_off" : "turn_on", "electric_switch", tvOn || hasRom),
+                new BlockActivationCommand(tvOn ? "turn_off" : "turn_on", "electric_switch", true),
                 new BlockActivationCommand("controls", "electric_switch", true),
                 new BlockActivationCommand("take", "hand", true)
             };
             return false;
+        }
+    }
+
+    // === nesConsole collider fix: shrink from full-block to model-sized ===
+
+    [HarmonyPatch(typeof(Block))]
+    [HarmonyPatch("OnBlockEntityTransformAfterActivated")]
+    public class NesConsoleColliderPatch
+    {
+        static void Postfix(Block __instance, WorldBase _world, Vector3i _blockPos, int _cIdx, BlockValue _blockValue, BlockEntityData _ebcd)
+        {
+            if (__instance.GetBlockName() != "nesConsole") return;
+            if (_ebcd?.transform == null) return;
+
+            var boxCol = _ebcd.transform.GetComponent<BoxCollider>();
+            if (boxCol == null) return;
+
+            // Calculate tight bounds from all child mesh renderers
+            var renderers = _ebcd.transform.GetComponentsInChildren<MeshRenderer>();
+            if (renderers.Length == 0) return;
+
+            Bounds bounds = renderers[0].bounds;
+            for (int i = 1; i < renderers.Length; i++)
+                bounds.Encapsulate(renderers[i].bounds);
+
+            // Convert world bounds to local space of the root transform
+            var localCenter = _ebcd.transform.InverseTransformPoint(bounds.center);
+            var localSize = _ebcd.transform.InverseTransformVector(bounds.size);
+            localSize = new Vector3(Mathf.Abs(localSize.x), Mathf.Abs(localSize.y), Mathf.Abs(localSize.z));
+
+            boxCol.center = localCenter;
+            boxCol.size = localSize;
+        }
+    }
+
+    // === Cartridge Helper ===
+    public static class CartridgeHelper
+    {
+        /// <summary>
+        /// Searches blocks within 1 block of the nesTV for a nesConsole with a cartridge inserted.
+        /// Returns the cartridge item name (e.g. "nesCart_ContraUSA") or null if none found.
+        /// </summary>
+        public static string FindNearbyCartridge(WorldBase world, int clrIdx, Vector3i tvPos)
+        {
+            for (int dx = -1; dx <= 1; dx++)
+            for (int dy = -1; dy <= 1; dy++)
+            for (int dz = -1; dz <= 1; dz++)
+            {
+                if (dx == 0 && dy == 0 && dz == 0) continue;
+                var pos = new Vector3i(tvPos.x + dx, tvPos.y + dy, tvPos.z + dz);
+                var bv = world.GetBlock(pos);
+                if (bv.Block == null || bv.Block.GetBlockName() != "nesConsole") continue;
+
+                var te = world.GetTileEntity(clrIdx, pos) as TileEntityWorkstation;
+                if (te == null) continue;
+
+                var tools = te.Tools;
+                if (tools != null && tools.Length > 0 && !tools[0].IsEmpty())
+                {
+                    var itemClass = tools[0].itemValue.ItemClass;
+                    if (itemClass != null)
+                    {
+                        string name = itemClass.GetItemName();
+                        if (name.StartsWith("nesCart_"))
+                            return name;
+                    }
+                }
+            }
+            return null;
         }
     }
 

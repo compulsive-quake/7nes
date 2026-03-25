@@ -8,18 +8,16 @@ namespace SevenNes.Integration
         private static NesEmulatorWindow _instance;
 
         // === STATE ===
-        private enum UIState { Closed, RomList, Playing, Controls }
+        private enum UIState { Closed, Playing, Controls }
         private UIState _uiState = UIState.Closed;
         private bool _tvOn; // TV is powered on (screen quad visible, emulator runs in background)
 
         private NesEmulatorManager _manager;
         private NesInputBindings _bindings;
-        private Vector2 _romListScroll;
 
         // GUI styles
         private GUIStyle _labelStyle;
         private GUIStyle _buttonStyle;
-        private GUIStyle _romButtonStyle;
         private GUIStyle _panelStyle;
         private bool _stylesInitialized;
 
@@ -27,6 +25,12 @@ namespace SevenNes.Integration
         private GameObject _screenQuad;
         private Material _screenMaterial;
         private Texture2D _dimOverlay;
+        private Texture2D _noSignalTexture;
+
+        // Cartridge monitoring
+        private float _cartridgeCheckTimer;
+        private const float CartridgeCheckInterval = 0.25f;
+        private string _lastCartridgeName;
 
         // Per-rotation calibration: [normalOffset, verticalOffset, screenWidth] for each yaw (0-3)
         private static readonly float[,] DefaultCalibration = new float[,]
@@ -38,7 +42,7 @@ namespace SevenNes.Integration
         };
 
         // Per-rotation horizontal flip (true = mirror the texture)
-        private static readonly bool[] DefaultFlip = { false, false, false, true };
+        private static readonly bool[] DefaultFlip = { false, true, false, true };
 
         // Active calibration values
         private float[,] _calibration;
@@ -62,6 +66,10 @@ namespace SevenNes.Integration
         private int _rebindIndex = -1;       // which button (0-7) is being rebound, -1 = none
         private bool _rebindIsGamepad;        // true = rebinding gamepad column, false = keyboard
         private Vector2 _controlsScroll;
+
+        // Notification (brief on-screen message)
+        private string _notification;
+        private float _notificationTimer;
 
 
         // === SINGLETON ===
@@ -97,6 +105,43 @@ namespace SevenNes.Integration
                 _flipHorizontal[i] = DefaultFlip[i];
             }
 
+            LoadNoSignalTexture();
+        }
+
+        private void LoadNoSignalTexture()
+        {
+            try
+            {
+                string path = Path.Combine(ModInit.ModPath, "Resources", "nosignal.jpg");
+                if (File.Exists(path))
+                {
+                    byte[] data = File.ReadAllBytes(path);
+                    _noSignalTexture = new Texture2D(2, 2);
+                    _noSignalTexture.LoadImage(data);
+                    _noSignalTexture.Apply();
+                    Log.Out("[7nes] Loaded no-signal image");
+                }
+                else
+                {
+                    Log.Warning("[7nes] No-signal image not found: " + path);
+                    CreateFallbackNoSignalTexture();
+                }
+            }
+            catch (System.Exception e)
+            {
+                Log.Error("[7nes] Failed to load no-signal image: " + e.Message);
+                CreateFallbackNoSignalTexture();
+            }
+        }
+
+        private void CreateFallbackNoSignalTexture()
+        {
+            _noSignalTexture = new Texture2D(256, 240);
+            var pixels = new Color32[256 * 240];
+            for (int i = 0; i < pixels.Length; i++)
+                pixels[i] = new Color32(20, 20, 20, 255);
+            _noSignalTexture.SetPixels32(pixels);
+            _noSignalTexture.Apply();
         }
 
         // === PUBLIC PROPERTIES (used by Harmony patches for dynamic command state) ===
@@ -105,52 +150,74 @@ namespace SevenNes.Integration
 
         // === PUBLIC API (called from Harmony patches) ===
 
-        /// Default E press: play if ROM loaded, otherwise open ROM list
+        /// Default E press: find cartridge in nearby nesConsole and play
         public void HandleActivate(Vector3i blockPos, byte rotation)
         {
             if (_uiState == UIState.Playing) return;
             if (_closeCooldown > 0f) return;
             SetBlockInfo(blockPos, rotation);
 
+            // Try to load from nearby nesConsole cartridge
+            var world = GameManager.Instance?.World;
+            if (world != null)
+            {
+                string cartridge = CartridgeHelper.FindNearbyCartridge(world, 0, blockPos);
+                _lastCartridgeName = cartridge;
+                if (cartridge != null)
+                {
+                    if (_manager.LoadRomByItemName(cartridge))
+                    {
+                        if (!_manager.IsRunning)
+                            _manager.Resume();
+                        _tvOn = true;
+                        EnsureScreenQuad();
+                        UpdateScreenMaterial();
+                        SetUIState(UIState.Playing);
+                        return;
+                    }
+                }
+            }
+
+            // No cartridge found — resume if already loaded, otherwise notify
             if (_manager.HasLoadedRom)
             {
                 if (!_manager.IsRunning)
                     _manager.Resume();
                 _tvOn = true;
                 EnsureScreenQuad();
+                UpdateScreenMaterial();
                 SetUIState(UIState.Playing);
             }
             else
             {
-                // No ROM loaded — go to ROM list
-                _romListScroll = Vector2.zero;
-                SetUIState(UIState.RomList);
+                ShowNotification("Insert a game cartridge into a nearby NES Console");
             }
         }
 
-        /// Hold-E radial: Choose Game
-        public void HandleChooseGame(Vector3i blockPos, byte rotation)
-        {
-            if (_uiState == UIState.Playing) return;
-            SetBlockInfo(blockPos, rotation);
-            _romListScroll = Vector2.zero;
-            SetUIState(UIState.RomList);
-        }
-
-        /// Hold-E radial: Turn On
+        /// Hold-E radial: Turn On — find cartridge and run in background
         public void HandleTurnOn(Vector3i blockPos, byte rotation)
         {
             if (_uiState == UIState.Playing) return;
             SetBlockInfo(blockPos, rotation);
 
-            if (_manager.HasLoadedRom)
+            // Try to load from nearby nesConsole cartridge
+            var world = GameManager.Instance?.World;
+            if (world != null)
             {
-                _manager.Resume();
-                _tvOn = true;
-                EnsureScreenQuad();
-                ClearControllerInput();
-                Log.Out("[7nes] TV turned on (background)");
+                string cartridge = CartridgeHelper.FindNearbyCartridge(world, 0, blockPos);
+                _lastCartridgeName = cartridge;
+                if (cartridge != null)
+                    _manager.LoadRomByItemName(cartridge);
             }
+
+            if (_manager.HasLoadedRom)
+                _manager.Resume();
+
+            _tvOn = true;
+            EnsureScreenQuad();
+            UpdateScreenMaterial();
+            ClearControllerInput();
+            Log.Out("[7nes] TV turned on");
             SetUIState(UIState.Closed);
         }
 
@@ -161,6 +228,7 @@ namespace SevenNes.Integration
             SetBlockInfo(blockPos, rotation);
 
             _tvOn = false;
+            _lastCartridgeName = null;
             _manager.Stop();
             ClearControllerInput();
             DestroyScreenQuad();
@@ -194,6 +262,39 @@ namespace SevenNes.Integration
             return PowerHelper.IsPowered(world, 0, _blockPos);
         }
 
+        private void CheckCartridgeState()
+        {
+            var world = GameManager.Instance?.World;
+            if (world == null) return;
+
+            string currentCartridge = CartridgeHelper.FindNearbyCartridge(world, 0, _blockPos);
+
+            // Cartridge was removed
+            if (_lastCartridgeName != null && currentCartridge == null)
+            {
+                Log.Out("[7nes] Cartridge removed — unloading game");
+                _manager.UnloadRom();
+                _lastCartridgeName = null;
+                UpdateScreenMaterial();
+
+                if (_uiState == UIState.Playing)
+                {
+                    ClearControllerInput();
+                    _closeCooldown = CloseCooldownDuration;
+                    SetUIState(UIState.Closed);
+                }
+                return;
+            }
+
+            _lastCartridgeName = currentCartridge;
+        }
+
+        private void UpdateScreenMaterial()
+        {
+            if (_screenMaterial == null) return;
+            _screenMaterial.mainTexture = _manager.HasLoadedRom ? _manager.ScreenTexture : _noSignalTexture;
+        }
+
         // === STATE MANAGEMENT ===
         private void SetUIState(UIState newState)
         {
@@ -206,7 +307,6 @@ namespace SevenNes.Integration
                     Cursor.visible = false;
                     Cursor.lockState = CursorLockMode.Locked;
                     break;
-                case UIState.RomList:
                 case UIState.Controls:
                     LockPlayer();
                     Cursor.visible = true;
@@ -295,7 +395,7 @@ namespace SevenNes.Integration
                 return;
             }
             _screenMaterial = new Material(shader);
-            _screenMaterial.mainTexture = _manager.ScreenTexture;
+            _screenMaterial.mainTexture = _manager.HasLoadedRom ? _manager.ScreenTexture : _noSignalTexture;
             _screenQuad.GetComponent<Renderer>().material = _screenMaterial;
 
             _screenQuad.transform.rotation = Quaternion.LookRotation(-_screenNormal, Vector3.up);
@@ -347,7 +447,7 @@ namespace SevenNes.Integration
             if (_closeCooldown > 0f)
                 _closeCooldown -= Time.deltaTime;
 
-            // Periodically check if power was lost while TV is on
+            // Periodically check if power was lost or cartridge removed while TV is on
             if (_tvOn)
             {
                 _powerCheckTimer += Time.deltaTime;
@@ -358,6 +458,7 @@ namespace SevenNes.Integration
                     {
                         Log.Out("[7nes] Power lost — turning TV off");
                         _tvOn = false;
+                        _lastCartridgeName = null;
                         _manager.Stop();
                         ClearControllerInput();
                         DestroyScreenQuad();
@@ -365,6 +466,13 @@ namespace SevenNes.Integration
                             SetUIState(UIState.Closed);
                         return;
                     }
+                }
+
+                _cartridgeCheckTimer += Time.deltaTime;
+                if (_cartridgeCheckTimer >= CartridgeCheckInterval)
+                {
+                    _cartridgeCheckTimer = 0f;
+                    CheckCartridgeState();
                 }
             }
 
@@ -387,7 +495,7 @@ namespace SevenNes.Integration
                 return;
             }
 
-            // E closes play mode, Escape closes ROM list
+            // E closes play mode
             if (_uiState == UIState.Playing && Input.GetKeyDown(KeyCode.E))
             {
                 // Exit play mode — TV stays on in background
@@ -396,25 +504,6 @@ namespace SevenNes.Integration
                 _closeCooldown = CloseCooldownDuration;
                 Log.Out($"[7nes-calibrate] FINAL VALUES (yaw {_currentYaw}): normalOffset={_calibration[_currentYaw, 0]:F3}  verticalOffset={_calibration[_currentYaw, 1]:F3}  screenWidth={_calibration[_currentYaw, 2]:F3}  flip={_flipHorizontal[_currentYaw]}");
                 SetUIState(UIState.Closed);
-            }
-            else if (Input.GetKeyDown(KeyCode.Escape))
-            {
-                if (_uiState == UIState.RomList)
-                {
-                    SetUIState(UIState.Closed);
-                }
-                return;
-            }
-
-            if (_uiState == UIState.RomList)
-            {
-                Cursor.visible = true;
-                Cursor.lockState = CursorLockMode.None;
-
-                // Keep running frames in background while browsing ROMs
-                if (_tvOn && _manager.IsRunning)
-                    _manager.RunFrame();
-                return;
             }
 
             if (_uiState == UIState.Playing)
@@ -450,13 +539,6 @@ namespace SevenNes.Integration
 
         private void UpdatePlaying()
         {
-            if (Input.GetKeyDown(KeyCode.Tab))
-            {
-                _romListScroll = Vector2.zero;
-                SetUIState(UIState.RomList);
-                return;
-            }
-
             if (Input.GetKeyDown(KeyCode.F5))
             {
                 _manager.Reset();
@@ -511,25 +593,24 @@ namespace SevenNes.Integration
             _buttonStyle.fontSize = 14;
             _buttonStyle.padding = new RectOffset(10, 10, 5, 5);
 
-            _romButtonStyle = new GUIStyle(GUI.skin.button);
-            _romButtonStyle.fontSize = 14;
-            _romButtonStyle.alignment = TextAnchor.MiddleLeft;
-            _romButtonStyle.padding = new RectOffset(15, 15, 8, 8);
-
             _stylesInitialized = true;
         }
 
         void OnGUI()
         {
+            // Draw notification even when Closed
+            if (_notificationTimer > 0f)
+            {
+                InitStyles();
+                DrawNotification();
+            }
+
             if (_uiState == UIState.Closed) return;
 
             InitStyles();
 
             switch (_uiState)
             {
-                case UIState.RomList:
-                    DrawRomList();
-                    break;
                 case UIState.Playing:
                     if (_manager.IsRunning)
                     {
@@ -542,64 +623,36 @@ namespace SevenNes.Integration
             }
         }
 
-        // === ROM LIST ===
-        void DrawRomList()
+        // === NOTIFICATION ===
+        private void ShowNotification(string message, float duration = 3f)
         {
-            GUI.Box(new Rect(0, 0, Screen.width, Screen.height), "", _panelStyle);
+            _notification = message;
+            _notificationTimer = duration;
+        }
 
-            float panelWidth = 500;
-            float panelHeight = Screen.height * 0.7f;
-            float x = (Screen.width - panelWidth) / 2f;
-            float y = (Screen.height - panelHeight) / 2f;
+        void DrawNotification()
+        {
+            _notificationTimer -= Time.deltaTime;
+            if (_notificationTimer <= 0f) return;
 
-            GUI.Box(new Rect(x - 10, y - 10, panelWidth + 20, panelHeight + 20), "");
+            float alpha = Mathf.Min(1f, _notificationTimer);
+            var style = new GUIStyle(GUI.skin.label);
+            style.fontSize = 18;
+            style.alignment = TextAnchor.MiddleCenter;
+            style.normal.textColor = new Color(1f, 1f, 1f, alpha);
+            style.wordWrap = true;
 
-            var titleStyle = new GUIStyle(_labelStyle);
-            titleStyle.fontSize = 24;
-            titleStyle.fontStyle = FontStyle.Bold;
-            GUI.Label(new Rect(x, y, panelWidth, 40), "NES ROM Library", titleStyle);
+            float w = 500;
+            float h = 60;
+            float x = (Screen.width - w) / 2f;
+            float y = Screen.height * 0.3f;
 
-            y += 50;
-            panelHeight -= 60;
+            var bgColor = GUI.color;
+            GUI.color = new Color(0, 0, 0, 0.7f * alpha);
+            GUI.Box(new Rect(x - 10, y - 10, w + 20, h + 20), "");
+            GUI.color = bgColor;
 
-            var romFiles = _manager.GetRomList();
-
-            if (romFiles == null || romFiles.Length == 0)
-            {
-                var infoStyle = new GUIStyle(_labelStyle);
-                infoStyle.wordWrap = true;
-                GUI.Label(new Rect(x, y, panelWidth, 100),
-                    $"No ROMs found!\n\nPlace .nes ROM files in:\n{ModInit.RomsPath}", infoStyle);
-            }
-            else
-            {
-                _romListScroll = GUI.BeginScrollView(
-                    new Rect(x, y, panelWidth, panelHeight - 50),
-                    _romListScroll,
-                    new Rect(0, 0, panelWidth - 20, romFiles.Length * 40));
-
-                for (int i = 0; i < romFiles.Length; i++)
-                {
-                    string romName = Path.GetFileNameWithoutExtension(romFiles[i]);
-                    if (GUI.Button(new Rect(0, i * 40, panelWidth - 20, 35), romName, _romButtonStyle))
-                    {
-                        if (_manager.LoadRom(i))
-                        {
-                            _tvOn = true;
-                            EnsureScreenQuad();
-                            SetUIState(UIState.Playing);
-                        }
-                    }
-                }
-
-                GUI.EndScrollView();
-            }
-
-            // Hint
-            var hintStyle2 = new GUIStyle(_labelStyle);
-            hintStyle2.fontSize = 12;
-            hintStyle2.normal.textColor = new Color(1, 1, 1, 0.5f);
-            GUI.Label(new Rect(x, y + panelHeight - 35, panelWidth, 25), "Press Esc to close", hintStyle2);
+            GUI.Label(new Rect(x, y, w, h), _notification, style);
         }
 
         // === CONTROLS DIALOG ===
