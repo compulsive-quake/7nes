@@ -73,6 +73,10 @@ namespace SevenNes.Integration
         private bool _rebindIsGamepad;        // true = rebinding gamepad column, false = keyboard
         private Vector2 _controlsScroll;
 
+        // Fullscreen overlay mode
+        private bool _isFullscreen;
+        private bool _fullscreenKeyHeld;
+
         // Notification (brief on-screen message)
         private string _notification;
         private float _notificationTimer;
@@ -329,6 +333,7 @@ namespace SevenNes.Integration
             if (_lastCartridgeName != null && currentCartridge == null)
             {
                 Log.Out("[7nes] Cartridge removed — unloading game");
+                _isFullscreen = false;
                 _manager.UnloadRom();
                 _lastCartridgeName = null;
                 UpdateScreenMaterial();
@@ -638,12 +643,15 @@ namespace SevenNes.Integration
                 // Keep running frames in background
                 if (_tvOn && _manager.IsRunning)
                     _manager.RunFrame();
+                // Prevent any key presses from reaching the game while controls dialog is open
+                Input.ResetInputAxes();
                 return;
             }
 
             // E closes play mode or no-signal calibration
             if ((_uiState == UIState.Playing || _uiState == UIState.NoSignalCalibrate) && Input.GetKeyDown(KeyCode.E))
             {
+                _isFullscreen = false;
                 ClearControllerInput();
                 _tvOn = true;
                 _closeCooldown = CloseCooldownDuration;
@@ -682,7 +690,12 @@ namespace SevenNes.Integration
             KeyCode detected = NesInputBindings.DetectKeyDown(_rebindIsGamepad);
             if (detected != KeyCode.None)
             {
-                if (_rebindIsGamepad)
+                if (_rebindIndex == NesInputBindings.ButtonCount)
+                {
+                    // Fullscreen extra binding
+                    _bindings.FullscreenKey = detected;
+                }
+                else if (_rebindIsGamepad)
                     _bindings.SetGamepad(_rebindIndex, detected);
                 else
                     _bindings.SetKeyboard(_rebindIndex, detected);
@@ -697,6 +710,23 @@ namespace SevenNes.Integration
                 _manager.Reset();
                 return;
             }
+
+            // Fullscreen toggle — track key edge in Update
+            if (_bindings.FullscreenKey != KeyCode.None)
+            {
+                bool pressed = Input.GetKey(_bindings.FullscreenKey);
+                if (pressed && !_fullscreenKeyHeld)
+                {
+                    _isFullscreen = !_isFullscreen;
+                    Log.Out($"[7nes] Fullscreen={_isFullscreen} (key={_bindings.FullscreenKey})");
+                }
+                _fullscreenKeyHeld = pressed;
+            }
+            // Debug: log once if GetKeyDown sees U at all
+            if (Input.GetKeyDown(KeyCode.U))
+                Log.Out("[7nes] DEBUG: Input.GetKeyDown(U) fired");
+            if (Input.GetKeyDown(KeyCode.Tab))
+                Log.Out("[7nes] DEBUG: Input.GetKeyDown(Tab) fired");
 
             // --- Calibration controls (numpad) ---
             bool changed = false;
@@ -785,6 +815,8 @@ namespace SevenNes.Integration
                 case UIState.Playing:
                     if (_manager.IsRunning)
                     {
+                        if (_isFullscreen)
+                            DrawFullscreen();
                         DrawControlsHint();
                     }
                     break;
@@ -836,13 +868,44 @@ namespace SevenNes.Integration
             GUI.Label(new Rect(x, y, w, h), _notification, style);
         }
 
+        // === FULLSCREEN OVERLAY ===
+        void DrawFullscreen()
+        {
+            var tex = _manager.ScreenTexture;
+            if (tex == null) return;
+
+            float screenW = Screen.width;
+            float screenH = Screen.height;
+
+            // Black letterbox background
+            GUI.DrawTexture(new Rect(0, 0, screenW, screenH), Texture2D.blackTexture);
+
+            // Maintain NES aspect ratio (256:240 = 16:15)
+            float nesAspect = 256f / 240f;
+            float drawH = screenH;
+            float drawW = drawH * nesAspect;
+            if (drawW > screenW)
+            {
+                drawW = screenW;
+                drawH = drawW / nesAspect;
+            }
+
+            float x = (screenW - drawW) / 2f;
+            float y = (screenH - drawH) / 2f;
+
+            // Draw NES screen — use simple GUI.DrawTexture for reliability.
+            // Colors may be slightly off vs the in-world quad (gamma difference)
+            // but this guarantees visibility in all 7DTD rendering configurations.
+            GUI.DrawTexture(new Rect(x, y, drawW, drawH), tex, ScaleMode.StretchToFill);
+        }
+
         // === CONTROLS DIALOG ===
         void DrawControlsDialog()
         {
             GUI.Box(new Rect(0, 0, Screen.width, Screen.height), "", _panelStyle);
 
             float panelWidth = 520;
-            float panelHeight = 460;
+            float panelHeight = 520;
             float px = (Screen.width - panelWidth) / 2f;
             float py = (Screen.height - panelHeight) / 2f;
 
@@ -923,8 +986,32 @@ namespace SevenNes.Integration
                 }
             }
 
+            // Extra bindings separator
+            float extraY = rowStart + NesInputBindings.ButtonCount * rowH + 5;
+            var sepStyle = new GUIStyle(_labelStyle);
+            sepStyle.fontSize = 13;
+            sepStyle.fontStyle = FontStyle.Bold;
+            sepStyle.normal.textColor = new Color(0.6f, 0.8f, 1f);
+            GUI.Label(new Rect(col0, extraY, panelWidth - 40, 25), "--- System ---", sepStyle);
+
+            float extraRowY = extraY + 28;
+
+            // Fullscreen binding (rebind index = ButtonCount i.e. 8)
+            GUI.Label(new Rect(col0, extraRowY, 110, 32), "Fullscreen", nameStyle);
+            bool isRebindingFs = (_rebindIndex == NesInputBindings.ButtonCount && !_rebindIsGamepad);
+            string fsText = isRebindingFs ? "< Press Key >" : NesInputBindings.KeyName(_bindings.FullscreenKey);
+            GUIStyle fsStyle = isRebindingFs ? listeningBtnStyle : bindBtnStyle;
+            if (GUI.Button(new Rect(col1, extraRowY, colW1, 32), fsText, fsStyle))
+            {
+                if (!isRebindingFs)
+                {
+                    _rebindIndex = NesInputBindings.ButtonCount;
+                    _rebindIsGamepad = false;
+                }
+            }
+
             // Bottom buttons
-            float btnY = rowStart + NesInputBindings.ButtonCount * rowH + 15;
+            float btnY = extraRowY + rowH + 15;
             float btnW = 140;
             float btnH = 35;
             float btnSpacing = 20;
@@ -941,7 +1028,9 @@ namespace SevenNes.Integration
             {
                 if (_rebindIndex >= 0)
                 {
-                    if (_rebindIsGamepad)
+                    if (_rebindIndex == NesInputBindings.ButtonCount)
+                        _bindings.FullscreenKey = KeyCode.None;
+                    else if (_rebindIsGamepad)
                         _bindings.SetGamepad(_rebindIndex, KeyCode.None);
                     else
                         _bindings.SetKeyboard(_rebindIndex, KeyCode.None);

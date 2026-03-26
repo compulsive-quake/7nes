@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.0.5] - 2026-03-26
+
+### Added
+- NES emulator knowledgebase (KB/) with 10 reference documents covering CPU, PPU, bus, cartridges, mappers, controllers, timing, scrolling, sprites, and palette
+- Fullscreen overlay mode — press U (rebindable) to view the NES screen fullscreen while playing
+- Fullscreen key binding in the controls dialog under a new "System" section
+
+### Fixed
+- MMC3 (Mapper 4) IRQ counter: implemented accurate "alternate" behavior with transition-to-zero guard, preventing spurious re-firing when latch is 0
+- MMC3 $C001 write now clears the IRQ counter immediately (matches kevtris hardware testing)
+- MMC3 IRQ propagation during OAM DMA — CPU now sees mapper IRQs as soon as DMA completes
+- Fullscreen toggle key (U) now detected via OnGUI Event.current instead of Input.GetKeyDown, preventing 7DTD's input system from consuming the keypress
+
+### Changed
+- PPU sprite evaluation refactored to parameterized buffer method (EvaluateSpriteBuffers)
+- Controls hint bar now shows the fullscreen key binding
+
 ## [1.0.4] - 2026-03-26
 
 ### Fixed

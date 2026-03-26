@@ -62,6 +62,8 @@ namespace SevenNes.Core
                     Ppu.Step();
                     Ppu.Step();
                     Ppu.Step();
+                    // Keep IRQ line up to date during DMA so CPU sees it immediately after
+                    Cpu.IrqPending = Apu.IrqPending || Cartridge.IrqPending;
                 }
                 else
                 {

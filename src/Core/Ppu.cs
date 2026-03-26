@@ -35,6 +35,11 @@ namespace SevenNes.Core
         private bool _nmiTriggered;
         private long _frameCount;
 
+        // Per-scanline sprite buffers (pre-evaluated at dot 0)
+        private byte[] _sprPixels = new byte[256];
+        private byte[] _sprPriority = new byte[256]; // 0 = in front of bg, 1 = behind bg
+        private bool[] _sprIsSprite0 = new bool[256];
+
         // NES system palette (64 colors, RGB) — 2C02G from nesdev.org/wiki/PPU_palettes
         private static readonly byte[,] SystemPalette = new byte[64, 3]
         {
@@ -345,24 +350,40 @@ namespace SevenNes.Core
 
         public void Step()
         {
-            // Visible scanlines: render at cycle 0 of each scanline (scanline-based renderer)
-            if (Scanline >= 0 && Scanline <= 239 && Cycle == 0)
+            bool rendering = IsRenderingEnabled();
+            bool visibleScanline = Scanline >= 0 && Scanline <= 239;
+            bool preRenderScanline = Scanline == 261;
+
+            // --- Visible scanlines (0-239): per-pixel rendering ---
+            if (visibleScanline && rendering)
             {
-                if (IsRenderingEnabled())
+                // Sprite evaluation at dot 0
+                if (Cycle == 0)
                 {
-                    RenderScanline(Scanline);
+                    EvaluateSpriteBuffers(Scanline, _sprPixels, _sprPriority, _sprIsSprite0);
+                }
+
+                // Pixel output at dots 1-256
+                if (Cycle >= 1 && Cycle <= 256)
+                {
+                    RenderPixel(Scanline, Cycle - 1);
+                }
+
+                // Increment fine Y at dot 256
+                if (Cycle == 256)
+                {
+                    IncrementScrollY();
+                }
+
+                // Copy horizontal bits from t to v at dot 257
+                if (Cycle == 257)
+                {
+                    _v = (ushort)((_v & 0x7BE0) | (_t & 0x041F));
                 }
             }
 
-            // Notify mapper of scanline for IRQ counting (at cycle 260, visible + pre-render)
-            if (Cycle == 260 && IsRenderingEnabled() &&
-                ((Scanline >= 0 && Scanline <= 239) || Scanline == 261))
-            {
-                _nes.Cartridge.Mapper.NotifyScanline();
-            }
-
-            // Pre-render scanline (261)
-            if (Scanline == 261)
+            // --- Pre-render scanline (261) ---
+            if (preRenderScanline)
             {
                 if (Cycle == 1)
                 {
@@ -371,14 +392,35 @@ namespace SevenNes.Core
                     _nmiTriggered = false;
                 }
 
-                if (Cycle >= 280 && Cycle <= 304 && IsRenderingEnabled())
+                if (rendering)
                 {
-                    // Copy vertical bits from t to v
-                    _v = (ushort)((_v & 0x041F) | (_t & 0x7BE0));
+                    // Increment fine Y at dot 256 (overwritten by vert copy, but matches hardware)
+                    if (Cycle == 256)
+                    {
+                        IncrementScrollY();
+                    }
+
+                    // Copy horizontal bits from t to v at dot 257
+                    if (Cycle == 257)
+                    {
+                        _v = (ushort)((_v & 0x7BE0) | (_t & 0x041F));
+                    }
+
+                    // Copy vertical bits from t to v at dots 280-304
+                    if (Cycle >= 280 && Cycle <= 304)
+                    {
+                        _v = (ushort)((_v & 0x041F) | (_t & 0x7BE0));
+                    }
                 }
             }
 
-            // VBlank scanline (241)
+            // --- Notify mapper of scanline for IRQ counting (at cycle 260) ---
+            if (Cycle == 260 && rendering && (visibleScanline || preRenderScanline))
+            {
+                _nes.Cartridge.Mapper.NotifyScanline();
+            }
+
+            // --- VBlank scanline (241) ---
             if (Scanline == 241 && Cycle == 1)
             {
                 _status |= 0x80; // Set vblank flag
@@ -389,7 +431,7 @@ namespace SevenNes.Core
                 }
             }
 
-            // Advance cycle and scanline
+            // --- Advance cycle and scanline ---
             Cycle++;
             if (Cycle > 340)
             {
@@ -404,187 +446,155 @@ namespace SevenNes.Core
             }
         }
 
-        private void RenderScanline(int scanline)
+        private void RenderPixel(int scanline, int px)
         {
             bool showBg = (_mask & 0x08) != 0;
             bool showSprites = (_mask & 0x10) != 0;
             bool showBgLeft = (_mask & 0x02) != 0;
             bool showSpritesLeft = (_mask & 0x04) != 0;
 
-            // Background pixel data for this scanline (palette index, 0 = transparent)
-            byte[] bgPixels = new byte[256];
-            // Sprite pixel data
-            byte[] sprPixels = new byte[256];
-            byte[] sprPriority = new byte[256]; // 0 = in front of bg, 1 = behind bg
-            bool[] sprIsSprite0 = new bool[256];
-
-            // Render background
-            if (showBg)
+            // Get background pixel
+            byte bgPal = 0;
+            if (showBg && (showBgLeft || px >= 8))
             {
-                RenderBackgroundScanline(scanline, bgPixels, showBgLeft);
+                bgPal = GetBackgroundPixel(px);
             }
 
-            // Render sprites
-            if (showSprites)
+            // Get sprite pixel (from pre-evaluated buffers)
+            byte sprPal = 0;
+            byte sprPri = 0;
+            bool spr0 = false;
+            if (showSprites && (showSpritesLeft || px >= 8))
             {
-                RenderSpriteScanline(scanline, sprPixels, sprPriority, sprIsSprite0, showSpritesLeft);
+                sprPal = _sprPixels[px];
+                sprPri = _sprPriority[px];
+                spr0 = _sprIsSprite0[px];
             }
 
-            // Compose final pixels
-            for (int px = 0; px < 256; px++)
+            bool bgOpaque = (bgPal & 0x03) != 0;
+            bool sprOpaque = (sprPal & 0x03) != 0;
+
+            // Sprite 0 hit detection
+            if (spr0 && bgOpaque && sprOpaque && px < 255 && showBg && showSprites)
             {
-                byte bgPal = bgPixels[px];
-                byte sprPal = sprPixels[px];
-                byte finalColor;
+                if (px >= 8 || (showBgLeft && showSpritesLeft))
+                {
+                    _status |= 0x40; // Set sprite 0 hit
+                }
+            }
 
-                bool bgOpaque = (bgPal & 0x03) != 0;
-                bool sprOpaque = (sprPal & 0x03) != 0;
-
-                // Sprite 0 hit detection
-                if (sprIsSprite0[px] && bgOpaque && sprOpaque && px < 255 && showBg && showSprites)
-                {
-                    if (px >= 8 || (showBgLeft && showSpritesLeft))
-                    {
-                        _status |= 0x40; // Set sprite 0 hit
-                    }
-                }
-
-                // Priority composition
-                if (!bgOpaque && !sprOpaque)
-                {
-                    finalColor = PpuRead(0x3F00); // Universal background
-                }
-                else if (bgOpaque && !sprOpaque)
-                {
-                    finalColor = PpuRead((ushort)(0x3F00 + bgPal));
-                }
-                else if (!bgOpaque && sprOpaque)
-                {
-                    finalColor = PpuRead((ushort)(0x3F10 + sprPal));
-                }
+            // Priority composition
+            byte finalColor;
+            if (!bgOpaque && !sprOpaque)
+            {
+                finalColor = PpuRead(0x3F00); // Universal background
+            }
+            else if (bgOpaque && !sprOpaque)
+            {
+                finalColor = PpuRead((ushort)(0x3F00 + bgPal));
+            }
+            else if (!bgOpaque && sprOpaque)
+            {
+                finalColor = PpuRead((ushort)(0x3F10 + sprPal));
+            }
+            else
+            {
+                // Both opaque - priority determines which is shown
+                if (sprPri == 0)
+                    finalColor = PpuRead((ushort)(0x3F10 + sprPal)); // Sprite in front
                 else
-                {
-                    // Both opaque - priority determines which is shown
-                    if (sprPriority[px] == 0)
-                        finalColor = PpuRead((ushort)(0x3F10 + sprPal)); // Sprite in front
-                    else
-                        finalColor = PpuRead((ushort)(0x3F00 + bgPal)); // Sprite behind
-                }
-
-                int colorIndex = finalColor & 0x3F;
-                if ((_mask & 0x01) != 0) // Greyscale
-                    colorIndex &= 0x30;
-
-                int fbIndex = (scanline * 256 + px) * 4;
-                FrameBuffer[fbIndex + 0] = SrgbToLinear[SystemPalette[colorIndex, 0]]; // R
-                FrameBuffer[fbIndex + 1] = SrgbToLinear[SystemPalette[colorIndex, 1]]; // G
-                FrameBuffer[fbIndex + 2] = SrgbToLinear[SystemPalette[colorIndex, 2]]; // B
-                FrameBuffer[fbIndex + 3] = 255;                                        // A
+                    finalColor = PpuRead((ushort)(0x3F00 + bgPal)); // Sprite behind
             }
 
-            // Update scroll registers at end of scanline if rendering enabled
-            if (IsRenderingEnabled())
-            {
-                IncrementScrollY();
-                // Copy horizontal bits from t to v
-                _v = (ushort)((_v & 0x7BE0) | (_t & 0x041F));
-            }
+            int colorIndex = finalColor & 0x3F;
+            if ((_mask & 0x01) != 0) // Greyscale
+                colorIndex &= 0x30;
+
+            int fbIndex = (scanline * 256 + px) * 4;
+            FrameBuffer[fbIndex + 0] = SrgbToLinear[SystemPalette[colorIndex, 0]]; // R
+            FrameBuffer[fbIndex + 1] = SrgbToLinear[SystemPalette[colorIndex, 1]]; // G
+            FrameBuffer[fbIndex + 2] = SrgbToLinear[SystemPalette[colorIndex, 2]]; // B
+            FrameBuffer[fbIndex + 3] = 255;                                        // A
         }
 
-        private void RenderBackgroundScanline(int scanline, byte[] bgPixels, bool showLeft)
+        private byte GetBackgroundPixel(int px)
         {
             int fineY = (_v >> 12) & 0x07;
             ushort patternBase = (ushort)((_ctrl & 0x10) != 0 ? 0x1000 : 0x0000);
 
-            // We need to render 256 pixels, accounting for fine X scroll
-            // Work through the tiles
-            ushort currentV = _v;
+            int effectiveCoarseX = (_v & 0x001F) + (px + _x) / 8;
+            int nametableX = (_v >> 10) & 0x01;
 
-            for (int px = 0; px < 256; px++)
+            // Handle nametable crossing
+            if (effectiveCoarseX >= 32)
             {
-                if (!showLeft && px < 8)
-                {
-                    bgPixels[px] = 0;
-                    continue;
-                }
-
-                int fineX = (px + _x) & 0x07;
-                int coarseX = ((px + _x) >> 3);
-
-                // Calculate effective v for this pixel
-                int effectiveCoarseX = (_v & 0x001F) + (px + _x) / 8;
-                int nametableX = (_v >> 10) & 0x01;
-
-                // Handle nametable crossing
-                if (effectiveCoarseX >= 32)
-                {
-                    effectiveCoarseX -= 32;
-                    nametableX ^= 1;
-                }
-
-                ushort ntAddr = (ushort)(0x2000 | (nametableX << 10) | ((_v >> 5 & 0x1F) << 5) | ((_v >> 11 & 0x01) << 11) | effectiveCoarseX);
-                // Simplify: use v's vertical bits
-                int coarseY = (_v >> 5) & 0x1F;
-                int nametableY = (_v >> 11) & 0x01;
-
-                ntAddr = (ushort)(0x2000 | (nametableY << 11) | (nametableX << 10) | (coarseY << 5) | effectiveCoarseX);
-
-                byte tileIndex = PpuRead(ntAddr);
-
-                // Attribute byte
-                int attrX = effectiveCoarseX / 4;
-                int attrY = coarseY / 4;
-                ushort attrAddr = (ushort)(0x23C0 | (nametableY << 11) | (nametableX << 10) | (attrY << 3) | attrX);
-                byte attrByte = PpuRead(attrAddr);
-
-                // Determine which 2-bit palette to use from the attribute byte
-                int palShift = 0;
-                if ((effectiveCoarseX & 0x02) != 0) palShift += 2;
-                if ((coarseY & 0x02) != 0) palShift += 4;
-                int palNum = (attrByte >> palShift) & 0x03;
-
-                // Get pattern data
-                int pixelBit = 7 - ((px + _x) & 0x07);
-                ushort patternAddr = (ushort)(patternBase + tileIndex * 16 + fineY);
-                byte patLow = PpuRead(patternAddr);
-                byte patHigh = PpuRead((ushort)(patternAddr + 8));
-
-                int colorBit0 = (patLow >> pixelBit) & 1;
-                int colorBit1 = (patHigh >> pixelBit) & 1;
-                int colorNum = colorBit0 | (colorBit1 << 1);
-
-                if (colorNum == 0)
-                    bgPixels[px] = 0;
-                else
-                    bgPixels[px] = (byte)(palNum * 4 + colorNum);
+                effectiveCoarseX -= 32;
+                nametableX ^= 1;
             }
+
+            int coarseY = (_v >> 5) & 0x1F;
+            int nametableY = (_v >> 11) & 0x01;
+
+            ushort ntAddr = (ushort)(0x2000 | (nametableY << 11) | (nametableX << 10) | (coarseY << 5) | effectiveCoarseX);
+            byte tileIndex = PpuRead(ntAddr);
+
+            // Attribute byte
+            int attrX = effectiveCoarseX / 4;
+            int attrY = coarseY / 4;
+            ushort attrAddr = (ushort)(0x23C0 | (nametableY << 11) | (nametableX << 10) | (attrY << 3) | attrX);
+            byte attrByte = PpuRead(attrAddr);
+
+            // Determine which 2-bit palette to use from the attribute byte
+            int palShift = 0;
+            if ((effectiveCoarseX & 0x02) != 0) palShift += 2;
+            if ((coarseY & 0x02) != 0) palShift += 4;
+            int palNum = (attrByte >> palShift) & 0x03;
+
+            // Get pattern data
+            int pixelBit = 7 - ((px + _x) & 0x07);
+            ushort patternAddr = (ushort)(patternBase + tileIndex * 16 + fineY);
+            byte patLow = PpuRead(patternAddr);
+            byte patHigh = PpuRead((ushort)(patternAddr + 8));
+
+            int colorBit0 = (patLow >> pixelBit) & 1;
+            int colorBit1 = (patHigh >> pixelBit) & 1;
+            int colorNum = colorBit0 | (colorBit1 << 1);
+
+            return colorNum == 0 ? (byte)0 : (byte)(palNum * 4 + colorNum);
         }
 
-        private void RenderSpriteScanline(int scanline, byte[] sprPixels, byte[] sprPriority, bool[] sprIsSprite0, bool showLeft)
+        private void EvaluateSpriteBuffers(int scanline, byte[] pixBuf, byte[] priBuf, bool[] sp0Buf)
         {
+            // Clear sprite buffers
+            Array.Clear(pixBuf, 0, 256);
+            Array.Clear(priBuf, 0, 256);
+            Array.Clear(sp0Buf, 0, 256);
+
             bool tallSprites = (_ctrl & 0x20) != 0;
             int spriteHeight = tallSprites ? 16 : 8;
             ushort sprPatternBase = (ushort)((_ctrl & 0x08) != 0 ? 0x1000 : 0x0000);
-            int spritesFound = 0;
 
-            // Evaluate all 64 sprites (reverse order so lower index sprites have priority)
-            for (int i = 63; i >= 0; i--)
+            // Pass 1: find the first 8 sprites on this scanline (forward order)
+            int spritesFound = 0;
+            int[] spriteIndices = new int[8];
+            for (int i = 0; i < 64 && spritesFound < 8; i++)
             {
+                int sprY = Oam[i * 4 + 0];
+                int row = scanline - sprY - 1;
+                if (row >= 0 && row < spriteHeight)
+                    spriteIndices[spritesFound++] = i;
+            }
+
+            // Pass 2: render in reverse order so lower-index sprites overwrite (higher priority)
+            for (int s = spritesFound - 1; s >= 0; s--)
+            {
+                int i = spriteIndices[s];
                 int sprY = Oam[i * 4 + 0];
                 int sprTile = Oam[i * 4 + 1];
                 int sprAttr = Oam[i * 4 + 2];
                 int sprX = Oam[i * 4 + 3];
 
                 int row = scanline - sprY - 1;
-                if (row < 0 || row >= spriteHeight)
-                    continue;
-
-                spritesFound++;
-                if (spritesFound > 8)
-                {
-                    _status |= 0x20; // Sprite overflow
-                    break;
-                }
 
                 bool flipH = (sprAttr & 0x40) != 0;
                 bool flipV = (sprAttr & 0x80) != 0;
@@ -621,8 +631,6 @@ namespace SevenNes.Core
                     int pixX = sprX + col;
                     if (pixX >= 256)
                         continue;
-                    if (!showLeft && pixX < 8)
-                        continue;
 
                     int bit = flipH ? col : (7 - col);
                     int colorBit0 = (patLow >> bit) & 1;
@@ -633,9 +641,9 @@ namespace SevenNes.Core
                         continue; // Transparent
 
                     // Lower index sprites have priority (we iterate in reverse, so overwrite)
-                    sprPixels[pixX] = (byte)(palNum * 4 + colorNum);
-                    sprPriority[pixX] = (byte)priority;
-                    sprIsSprite0[pixX] = (i == 0);
+                    pixBuf[pixX] = (byte)(palNum * 4 + colorNum);
+                    priBuf[pixX] = (byte)priority;
+                    sp0Buf[pixX] = (i == 0);
                 }
             }
         }

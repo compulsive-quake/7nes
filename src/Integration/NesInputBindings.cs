@@ -16,6 +16,11 @@ namespace SevenNes.Integration
         private KeyCode[] _keyboardBindings;
         private KeyCode[] _gamepadBindings;
 
+        // Extra bindings (non-NES-controller keys)
+        private KeyCode _fullscreenKey;
+        private static readonly KeyCode DefaultFullscreenKey = KeyCode.U;
+        public KeyCode FullscreenKey { get => _fullscreenKey; set => _fullscreenKey = value; }
+
         private static readonly KeyCode[] DefaultKeyboard = {
             KeyCode.A,          // A
             KeyCode.D,          // B
@@ -44,6 +49,7 @@ namespace SevenNes.Integration
         {
             _keyboardBindings = (KeyCode[])DefaultKeyboard.Clone();
             _gamepadBindings = (KeyCode[])DefaultGamepad.Clone();
+            _fullscreenKey = DefaultFullscreenKey;
         }
 
         public void SetSavePath(string modPath)
@@ -68,6 +74,7 @@ namespace SevenNes.Integration
         {
             Array.Copy(DefaultKeyboard, _keyboardBindings, ButtonCount);
             Array.Copy(DefaultGamepad, _gamepadBindings, ButtonCount);
+            _fullscreenKey = DefaultFullscreenKey;
         }
 
         public void Save()
@@ -82,6 +89,7 @@ namespace SevenNes.Integration
                         writer.WriteLine($"{ButtonNames[i]}_kb={_keyboardBindings[i]}");
                         writer.WriteLine($"{ButtonNames[i]}_gp={_gamepadBindings[i]}");
                     }
+                    writer.WriteLine($"Fullscreen_kb={_fullscreenKey}");
                 }
                 Log.Out("[7nes] Controls saved");
             }
@@ -106,6 +114,12 @@ namespace SevenNes.Integration
 
                     if (!Enum.TryParse(val, out KeyCode keyCode)) continue;
 
+                    if (key == "Fullscreen_kb")
+                    {
+                        _fullscreenKey = keyCode;
+                        continue;
+                    }
+
                     for (int i = 0; i < ButtonCount; i++)
                     {
                         if (key == ButtonNames[i] + "_kb")
@@ -129,7 +143,8 @@ namespace SevenNes.Integration
             string b = KeyName(GetKeyboard(1));
             string start = KeyName(GetKeyboard(3));
             string select = KeyName(GetKeyboard(2));
-            return $"{dpad}=D-Pad | {a}=A | {b}=B | {start}=Start | {select}=Select | Tab=ROM List | F5=Reset | E=Quit";
+            string fullscreen = KeyName(_fullscreenKey);
+            return $"{dpad}=D-Pad | {a}=A | {b}=B | {start}=Start | {select}=Select | {fullscreen}=Fullscreen | F5=Reset | E=Quit";
         }
 
         public static string KeyName(KeyCode key)

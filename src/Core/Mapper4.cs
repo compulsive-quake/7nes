@@ -117,9 +117,14 @@ namespace SevenNes.Core
                 if (!_isMapper206)
                 {
                     if (isEven)
+                    {
                         _irqLatch = value;
+                    }
                     else
+                    {
                         _irqReload = true;
+                        _irqCounter = 0; // Clear counter immediately; reloads from latch on next scanline clock
+                    }
                 }
             }
             else // $E000-$FFFF
@@ -212,20 +217,27 @@ namespace SevenNes.Core
         {
             if (_isMapper206) return;
 
+            byte oldCounter = _irqCounter;
+            bool wasReload = _irqReload;
+
             if (_irqCounter == 0 || _irqReload)
             {
                 _irqCounter = _irqLatch;
-                _irqReload = false;
             }
             else
             {
                 _irqCounter--;
             }
 
-            if (_irqCounter == 0 && _irqEnabled)
+            // Fire IRQ only on transition to zero: either decremented from non-zero,
+            // or reloaded to zero via explicit reload flag. Prevents re-firing every
+            // scanline when latch is 0 and no new reload was requested.
+            if (_irqCounter == 0 && _irqEnabled && (oldCounter != 0 || wasReload))
             {
                 _cartridge.IrqPending = true;
             }
+
+            _irqReload = false;
         }
     }
 }
