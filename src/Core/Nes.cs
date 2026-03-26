@@ -75,9 +75,8 @@ namespace SevenNes.Core
                         if (Ppu.FrameComplete)
                             break;
                     }
-                    // Set IRQ from APU or mapper
-                    if (Apu.IrqPending || Cartridge.IrqPending)
-                        Cpu.IrqPending = true;
+                    // Propagate IRQ line state (level-triggered, like real hardware)
+                    Cpu.IrqPending = Apu.IrqPending || Cartridge.IrqPending;
                 }
             }
         }

@@ -35,74 +35,88 @@ namespace SevenNes.Core
         private bool _nmiTriggered;
         private long _frameCount;
 
-        // NES system palette (64 colors, RGB)
+        // NES system palette (64 colors, RGB) — 2C02G from nesdev.org/wiki/PPU_palettes
         private static readonly byte[,] SystemPalette = new byte[64, 3]
         {
-            { 84, 84, 84 },    // 0x00
-            { 0, 30, 116 },    // 0x01
-            { 8, 16, 144 },    // 0x02
-            { 48, 0, 136 },    // 0x03
-            { 68, 0, 100 },    // 0x04
-            { 92, 0, 48 },     // 0x05
-            { 84, 4, 0 },      // 0x06
-            { 60, 24, 0 },     // 0x07
-            { 32, 42, 0 },     // 0x08
-            { 8, 58, 0 },      // 0x09
-            { 0, 64, 0 },      // 0x0A
-            { 0, 60, 0 },      // 0x0B
-            { 0, 50, 60 },     // 0x0C
-            { 0, 0, 0 },       // 0x0D
-            { 0, 0, 0 },       // 0x0E
-            { 0, 0, 0 },       // 0x0F
-            { 152, 150, 152 }, // 0x10
-            { 8, 76, 196 },    // 0x11
-            { 48, 50, 236 },   // 0x12
-            { 92, 30, 228 },   // 0x13
-            { 136, 20, 176 },  // 0x14
-            { 160, 20, 100 },  // 0x15
-            { 152, 34, 32 },   // 0x16
-            { 120, 60, 0 },    // 0x17
-            { 84, 90, 0 },     // 0x18
-            { 40, 114, 0 },    // 0x19
-            { 8, 124, 0 },     // 0x1A
-            { 0, 118, 40 },    // 0x1B
-            { 0, 102, 120 },   // 0x1C
-            { 0, 0, 0 },       // 0x1D
-            { 0, 0, 0 },       // 0x1E
-            { 0, 0, 0 },       // 0x1F
-            { 236, 238, 236 }, // 0x20
-            { 76, 154, 236 },  // 0x21
-            { 120, 124, 236 }, // 0x22
-            { 176, 98, 236 },  // 0x23
-            { 228, 84, 236 },  // 0x24
-            { 236, 88, 180 },  // 0x25
-            { 236, 106, 100 }, // 0x26
-            { 212, 136, 32 },  // 0x27
-            { 160, 170, 0 },   // 0x28
-            { 116, 196, 0 },   // 0x29
-            { 76, 208, 32 },   // 0x2A
-            { 56, 204, 108 },  // 0x2B
-            { 56, 180, 204 },  // 0x2C
-            { 60, 60, 60 },    // 0x2D
-            { 0, 0, 0 },       // 0x2E
-            { 0, 0, 0 },       // 0x2F
-            { 236, 238, 236 }, // 0x30
-            { 168, 204, 236 }, // 0x31
-            { 188, 188, 236 }, // 0x32
-            { 212, 178, 236 }, // 0x33
-            { 236, 174, 236 }, // 0x34
-            { 236, 174, 212 }, // 0x35
-            { 236, 180, 176 }, // 0x36
-            { 228, 196, 144 }, // 0x37
-            { 204, 210, 120 }, // 0x38
-            { 180, 222, 120 }, // 0x39
-            { 168, 226, 144 }, // 0x3A
-            { 152, 226, 180 }, // 0x3B
-            { 160, 214, 228 }, // 0x3C
-            { 160, 162, 160 }, // 0x3D
-            { 0, 0, 0 },       // 0x3E
-            { 0, 0, 0 },       // 0x3F
+            {  98,  98,  98 }, // 0x00
+            {   0,  28, 149 }, // 0x01
+            {  25,   4, 172 }, // 0x02
+            {  66,   0, 157 }, // 0x03
+            {  97,   0, 107 }, // 0x04
+            { 110,   0,  37 }, // 0x05
+            { 101,   5,   0 }, // 0x06
+            {  73,  30,   0 }, // 0x07
+            {  34,  55,   0 }, // 0x08
+            {   0,  73,   0 }, // 0x09
+            {   0,  79,   0 }, // 0x0A
+            {   0,  72,  22 }, // 0x0B
+            {   0,  53,  94 }, // 0x0C
+            {   0,   0,   0 }, // 0x0D
+            {   0,   0,   0 }, // 0x0E
+            {   0,   0,   0 }, // 0x0F
+            { 171, 171, 171 }, // 0x10
+            {  12,  78, 219 }, // 0x11
+            {  61,  46, 255 }, // 0x12
+            { 113,  21, 243 }, // 0x13
+            { 155,  11, 185 }, // 0x14
+            { 176,  18,  98 }, // 0x15
+            { 169,  39,   4 }, // 0x16
+            { 137,  70,   0 }, // 0x17
+            {  87, 102,   0 }, // 0x18
+            {  35, 127,   0 }, // 0x19
+            {   0, 137,   0 }, // 0x1A
+            {   0, 131,  50 }, // 0x1B
+            {   0, 109, 144 }, // 0x1C
+            {   0,   0,   0 }, // 0x1D
+            {   0,   0,   0 }, // 0x1E
+            {   0,   0,   0 }, // 0x1F
+            { 255, 255, 255 }, // 0x20
+            {  87, 165, 255 }, // 0x21
+            { 130, 135, 255 }, // 0x22
+            { 180, 109, 255 }, // 0x23
+            { 223,  96, 255 }, // 0x24
+            { 248,  99, 198 }, // 0x25
+            { 248, 116, 109 }, // 0x26
+            { 222, 144,  32 }, // 0x27
+            { 179, 174,   0 }, // 0x28
+            { 129, 200,   0 }, // 0x29
+            {  86, 213,  34 }, // 0x2A
+            {  61, 211, 111 }, // 0x2B
+            {  62, 193, 200 }, // 0x2C
+            {  78,  78,  78 }, // 0x2D
+            {   0,   0,   0 }, // 0x2E
+            {   0,   0,   0 }, // 0x2F
+            { 255, 255, 255 }, // 0x30
+            { 190, 224, 255 }, // 0x31
+            { 205, 212, 255 }, // 0x32
+            { 224, 202, 255 }, // 0x33
+            { 241, 196, 255 }, // 0x34
+            { 252, 196, 239 }, // 0x35
+            { 253, 202, 206 }, // 0x36
+            { 245, 212, 175 }, // 0x37
+            { 230, 223, 156 }, // 0x38
+            { 211, 233, 154 }, // 0x39
+            { 194, 239, 168 }, // 0x3A
+            { 183, 239, 196 }, // 0x3B
+            { 182, 234, 229 }, // 0x3C
+            { 184, 184, 184 }, // 0x3D
+            {   0,   0,   0 }, // 0x3E
+            {   0,   0,   0 }, // 0x3F
         };
+
+        // sRGB-to-linear lookup table: compensates for Unity's linear→sRGB display gamma
+        private static readonly byte[] SrgbToLinear = BuildSrgbToLinearTable();
+        private static byte[] BuildSrgbToLinearTable()
+        {
+            var table = new byte[256];
+            for (int i = 0; i < 256; i++)
+            {
+                double s = i / 255.0;
+                double linear = s <= 0.04045 ? s / 12.92 : System.Math.Pow((s + 0.055) / 1.055, 2.4);
+                table[i] = (byte)(linear * 255.0 + 0.5);
+            }
+            return table;
+        }
 
         public Ppu(Nes nes)
         {
@@ -462,10 +476,10 @@ namespace SevenNes.Core
                     colorIndex &= 0x30;
 
                 int fbIndex = (scanline * 256 + px) * 4;
-                FrameBuffer[fbIndex + 0] = SystemPalette[colorIndex, 0]; // R
-                FrameBuffer[fbIndex + 1] = SystemPalette[colorIndex, 1]; // G
-                FrameBuffer[fbIndex + 2] = SystemPalette[colorIndex, 2]; // B
-                FrameBuffer[fbIndex + 3] = 255;                          // A
+                FrameBuffer[fbIndex + 0] = SrgbToLinear[SystemPalette[colorIndex, 0]]; // R
+                FrameBuffer[fbIndex + 1] = SrgbToLinear[SystemPalette[colorIndex, 1]]; // G
+                FrameBuffer[fbIndex + 2] = SrgbToLinear[SystemPalette[colorIndex, 2]]; // B
+                FrameBuffer[fbIndex + 3] = 255;                                        // A
             }
 
             // Update scroll registers at end of scanline if rendering enabled
@@ -561,7 +575,7 @@ namespace SevenNes.Core
                 int sprAttr = Oam[i * 4 + 2];
                 int sprX = Oam[i * 4 + 3];
 
-                int row = scanline - sprY;
+                int row = scanline - sprY - 1;
                 if (row < 0 || row >= spriteHeight)
                     continue;
 

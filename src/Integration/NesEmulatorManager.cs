@@ -215,18 +215,31 @@ namespace SevenNes.Integration
             }
         }
 
+        // Overscan crop: remove 8px from each side, then scale back to 256x240
+        private const int OverscanPixels = 8;
+        private const int CropX = OverscanPixels;
+        private const int CropY = OverscanPixels;
+        private const int CropWidth = 256 - OverscanPixels * 2;  // 240
+        private const int CropHeight = 240 - OverscanPixels * 2; // 224
+
         private void UpdateTexture()
         {
             byte[] fb = _nes.GetFrameBuffer();
             if (fb == null) return;
 
-            for (int y = 0; y < 240; y++)
+            for (int dy = 0; dy < 240; dy++)
             {
-                for (int x = 0; x < 256; x++)
+                // Map destination Y to source Y within the cropped region
+                int sy = CropY + dy * CropHeight / 240;
+
+                for (int dx = 0; dx < 256; dx++)
                 {
-                    // NES framebuffer is top-to-bottom, Unity textures are bottom-to-top
-                    int srcIdx = (y * 256 + x) * 4;
-                    int dstIdx = ((239 - y) * 256) + x;
+                    // Map destination X to source X within the cropped region
+                    int sx = CropX + dx * CropWidth / 256;
+
+                    int srcIdx = (sy * 256 + sx) * 4;
+                    // Unity textures are bottom-to-top
+                    int dstIdx = ((239 - dy) * 256) + dx;
                     _colorBuffer[dstIdx] = new Color32(fb[srcIdx], fb[srcIdx + 1], fb[srcIdx + 2], 255);
                 }
             }

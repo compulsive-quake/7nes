@@ -298,6 +298,7 @@ namespace SevenNes.Integration
             SetBlockInfo(blockPos, rotation);
             _rebindIndex = -1;
             _controlsScroll = Vector2.zero;
+            ClearControllerInput();
             SetUIState(UIState.Controls);
         }
 
@@ -789,6 +790,13 @@ namespace SevenNes.Integration
                     break;
                 case UIState.Controls:
                     DrawControlsDialog();
+                    // Consume all keyboard/gamepad events so they don't reach the game
+                    if (Event.current != null &&
+                        (Event.current.isKey || Event.current.isMouse ||
+                         Event.current.type == EventType.KeyDown || Event.current.type == EventType.KeyUp))
+                    {
+                        Event.current.Use();
+                    }
                     break;
                 case UIState.NoSignalCalibrate:
                     DrawNoSignalCalibrationHUD();

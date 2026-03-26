@@ -1,7 +1,10 @@
 ManifestFileVersion: 0
-CRC: 599000484
+CRC: 2503435585
 AssetBundleManifest:
   AssetBundleInfos:
     Info_0:
+      Name: nesmodel.unity3d
+      Dependencies: {}
+    Info_1:
       Name: nescartridge.unity3d
       Dependencies: {}

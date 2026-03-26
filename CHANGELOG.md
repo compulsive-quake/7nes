@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.0.4] - 2026-03-26
+
+### Fixed
+- Sprite Y-offset: sprites now render 1 scanline lower (matching real NES hardware OAM Y+1 behavior), fixing face/body artifacts on Mario and other characters
+- IRQ propagation: IRQ line is now properly level-triggered (de-asserts when source clears), fixing edge cases in MMC3 IRQ handling
+
+### Changed
+- System palette replaced with hardware-measured 2C02G values from nesdev.org/wiki/PPU_palettes
+- Framebuffer output now applies sRGB-to-linear conversion to compensate for Unity's linear rendering pipeline gamma correction
+- Added overscan cropping (8px from each edge) with nearest-neighbor scaling for cleaner screen edges
+- Controls dialog now consumes keyboard/gamepad events to prevent input bleed-through to the game
+
 ## [1.0.3] - 2026-03-25
 
 ### Added
