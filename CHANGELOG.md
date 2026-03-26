@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.0.3] - 2026-03-25
+
+### Added
+- Player hand/item hiding when using the NES TV — arms, body, and held items (guns, tools) are hidden while playing, viewing controls, or calibrating, and restored when closing
+
+### Changed
+- Increased controls hint font size from 12 to 18 and hint bar height from 25 to 30 for better readability
+
 ## [1.0.2] - 2026-03-25
 
 ### Changed

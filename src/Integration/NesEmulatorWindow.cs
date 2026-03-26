@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.IO;
 using UnityEngine;
 
@@ -10,6 +11,11 @@ namespace SevenNes.Integration
         // === STATE ===
         private enum UIState { Closed, Playing, Controls, NoSignalCalibrate }
         private UIState _uiState = UIState.Closed;
+
+        // Hand hiding while using TV
+        private bool _handsHidden;
+        private List<SkinnedMeshRenderer> _hiddenHandRenderers = new List<SkinnedMeshRenderer>();
+        private List<MeshRenderer> _hiddenItemRenderers = new List<MeshRenderer>();
         private bool _tvOn; // TV is powered on (screen quad visible, emulator runs in background)
 
         private NesEmulatorManager _manager;
@@ -367,23 +373,27 @@ namespace SevenNes.Integration
             {
                 case UIState.Closed:
                     UnlockPlayer();
+                    ShowPlayerHands();
                     SetHUDVisible(true);
                     Cursor.visible = false;
                     Cursor.lockState = CursorLockMode.Locked;
                     break;
                 case UIState.Controls:
                     LockPlayer();
+                    HidePlayerHands();
                     Cursor.visible = true;
                     Cursor.lockState = CursorLockMode.None;
                     break;
                 case UIState.Playing:
                     LockPlayer();
+                    HidePlayerHands();
                     SetHUDVisible(false);
                     Cursor.visible = false;
                     Cursor.lockState = CursorLockMode.Locked;
                     break;
                 case UIState.NoSignalCalibrate:
                     LockPlayer();
+                    HidePlayerHands();
                     SetHUDVisible(false);
                     Cursor.visible = false;
                     Cursor.lockState = CursorLockMode.Locked;
@@ -401,6 +411,56 @@ namespace SevenNes.Integration
         {
             var player = GameManager.Instance?.World?.GetPrimaryPlayer();
             if (player != null) player.SetControllable(true);
+        }
+
+        private void HidePlayerHands()
+        {
+            if (_handsHidden) return;
+            var player = GameManager.Instance?.World?.GetPrimaryPlayer();
+            if (player == null) return;
+
+            // Hide arms/body (SkinnedMeshRenderers)
+            var skinnedRenderers = player.GetComponentsInChildren<SkinnedMeshRenderer>(false);
+            foreach (var smr in skinnedRenderers)
+            {
+                if (smr.enabled)
+                {
+                    smr.enabled = false;
+                    _hiddenHandRenderers.Add(smr);
+                }
+            }
+
+            // Hide held items like guns, tools, etc. (regular MeshRenderers)
+            var meshRenderers = player.GetComponentsInChildren<MeshRenderer>(false);
+            foreach (var mr in meshRenderers)
+            {
+                if (mr.enabled)
+                {
+                    mr.enabled = false;
+                    _hiddenItemRenderers.Add(mr);
+                }
+            }
+
+            if (_hiddenHandRenderers.Count > 0 || _hiddenItemRenderers.Count > 0)
+                _handsHidden = true;
+        }
+
+        private void ShowPlayerHands()
+        {
+            if (!_handsHidden) return;
+            foreach (var smr in _hiddenHandRenderers)
+            {
+                if (smr != null)
+                    smr.enabled = true;
+            }
+            _hiddenHandRenderers.Clear();
+            foreach (var mr in _hiddenItemRenderers)
+            {
+                if (mr != null)
+                    mr.enabled = true;
+            }
+            _hiddenItemRenderers.Clear();
+            _handsHidden = false;
         }
 
         private GUIWindowManager.HudEnabledStates _previousHudState = GUIWindowManager.HudEnabledStates.Enabled;
@@ -900,10 +960,10 @@ namespace SevenNes.Integration
         void DrawControlsHint()
         {
             var hintStyle = new GUIStyle(_labelStyle);
-            hintStyle.fontSize = 12;
+            hintStyle.fontSize = 18;
             hintStyle.normal.textColor = new Color(1f, 1f, 1f, 0.7f);
 
-            float hintHeight = 25;
+            float hintHeight = 30;
             float hintY = Screen.height - hintHeight - 10;
 
             GUI.Box(new Rect(0, hintY - 5, Screen.width, hintHeight + 10), "", _panelStyle);
