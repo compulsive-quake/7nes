@@ -20,11 +20,11 @@
 - **Display:** Emulator frames render to a Unity quad positioned on the TV's screen face, calibrated per rotation.
 
 ### nesConsole (Block)
-- **Class:** `Workstation`
-- **Purpose:** The NES console unit where players insert game cartridges.
-- **Interaction:** Press E to open a workstation UI with a single tool slot ("CARTRIDGE SLOT") for inserting cartridge items.
-- **Config:** Uses `Modules="tools,output"`, `ToolNames="1"`, `CraftingAreaRecipes="nesConsole"` (no actual recipes — the crafting list is intentionally empty).
-- **XUi:** Window group `workstation_nesConsole` defined in `Config/XUi/xui.xml`, with custom tool slot window `windowNesConsoleSlot` in `Config/XUi/windows.xml`.
+- **Class:** `SecureLoot`
+- **Purpose:** The NES console unit where players insert game cartridges. Uses a 1-slot loot container.
+- **Interaction:** Press E to open a custom window styled like the game's power source panels, with a single cartridge slot.
+- **Config:** Uses `LootList="nesConsoleStorage"` pointing to a 1-slot container in `loot.xml`.
+- **XUi:** Window group `nesConsole` (controller `XUiC_LootWindowGroup`) defined in `Config/XUi/xui.xml`. Cartridge slot window `windowNesConsoleSlot` uses `LootWindow`/`LootContainer` controllers. A Harmony patch on `XUiC_LootWindowGroup.OnOpen` redirects from the default `looting` window to our custom `nesConsole` window group.
 
 ### nesCart_* (Items — dynamically generated)
 - **Generation:** `NesCartridgeItems.cs` scans `Roms/` at mod init and generates `Config/items.xml` with one item per `.nes` ROM file.

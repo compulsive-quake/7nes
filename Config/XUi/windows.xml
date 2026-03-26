@@ -1,28 +1,30 @@
 <configs>
     <append xpath="/windows">
-        <window name="windowNesConsoleSlot" width="228" height="121" panel="Right" cursor_area="true">
+        <window name="windowNesConsoleSlot" width="228" height="121" panel="Left" cursor_area="true" controller="LootWindow">
             <panel style="header.panel">
-                <sprite style="header.icon" sprite="ui_game_symbol_wrench"/>
+                <sprite style="header.icon" sprite="ui_game_symbol_nes_cartridge"/>
                 <label style="header.name.shrink" text="CARTRIDGE SLOT" text_key="xuiNesCartridgeSlot"/>
             </panel>
             <rect name="content" depth="0" pos="0,-46" height="75" disablefallthrough="true">
-                <grid name="inventory" rows="1" cols="1" pos="3,-3" cell_width="75" cell_height="75"
-                      controller="WorkstationToolGrid" repeat_content="true"
-                      required_tools_only="false">
-                    <item_stack controller="RequiredItemStack" name="0"/>
+                <sprite depth="2" name="background" sprite="menu_empty" color="[darkGrey]" type="sliced"/>
+                <sprite depth="8" name="backgroundMain" sprite="menu_empty3px" color="[black]" type="sliced" fillcenter="false"/>
+                <grid depth="3" name="queue" rows="1" cols="1" pos="3,-3" cell_width="75" cell_height="75"
+                      repeat_content="true" controller="LootContainer">
+                    <item_stack name="0"/>
                 </grid>
             </rect>
         </window>
         <window name="windowNesConsoleInfo" width="530" height="420" panel="Center" cursor_area="true">
             <panel style="header.panel">
-                <sprite style="header.icon" sprite="ui_game_symbol_wrench"/>
-                <label style="header.name" text="Nintendo Entertainment Console" text_key="xuiNesConsoleTitle"/>
+                <sprite style="header.icon" sprite="ui_game_symbol_nes_cartridge"/>
+                <label style="header.name" text="NES Console" text_key="xuiNesConsoleTitle"/>
             </panel>
             <rect depth="0" pos="0,-46" height="374">
-                <sprite depth="-2" pos="0,0" height="374" width="530" color="[medGrey]" sprite="menu_empty" type="sliced"/>
-                <label pos="16,-16" width="498" height="342" depth="1"
-                       text="Place NES Console within one block of the NES TV\nWire power to TV\nWire power to NES\nAdd game to cartridge slot"
-                       font_size="24" color="[nearWhite]" justify="left" overflow="ClampContent"/>
+                <sprite depth="2" pos="0,0" height="374" width="530" sprite="menu_empty" color="[darkGrey]" type="sliced"/>
+                <sprite depth="8" pos="0,0" height="374" width="530" sprite="menu_empty3px" color="[black]" type="sliced" fillcenter="false"/>
+                <label pos="16,-16" width="498" height="342" depth="3"
+                       text="Place NES Console within one block of the NES TV\nWire power to TV\nAdd game to cartridge slot"
+                       font_size="24" color="[beige]" justify="left" overflow="ClampContent"/>
             </rect>
         </window>
     </append>

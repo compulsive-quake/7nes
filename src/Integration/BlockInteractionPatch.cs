@@ -1,3 +1,5 @@
+using System;
+using System.Reflection;
 using HarmonyLib;
 using UnityEngine;
 
@@ -254,13 +256,12 @@ namespace SevenNes.Integration
                 var bv = world.GetBlock(pos);
                 if (bv.Block == null || bv.Block.GetBlockName() != "nesConsole") continue;
 
-                var te = world.GetTileEntity(clrIdx, pos) as TileEntityWorkstation;
+                var te = world.GetTileEntity(clrIdx, pos) as TileEntityLootContainer;
                 if (te == null) continue;
 
-                var tools = te.Tools;
-                if (tools != null && tools.Length > 0 && !tools[0].IsEmpty())
+                if (te.items != null && te.items.Length > 0 && !te.items[0].IsEmpty())
                 {
-                    var itemClass = tools[0].itemValue.ItemClass;
+                    var itemClass = te.items[0].itemValue.ItemClass;
                     if (itemClass != null)
                     {
                         string name = itemClass.GetItemName();
@@ -270,6 +271,64 @@ namespace SevenNes.Integration
                 }
             }
             return null;
+        }
+    }
+
+    // === Redirect looting window to nesConsole custom window group ===
+
+    // Track when a nesConsole block is being activated so the redirect knows to fire
+    [HarmonyPatch]
+    public class NesConsoleActivationTracker
+    {
+        static MethodBase TargetMethod()
+        {
+            // BlockSecureLoot overrides OnBlockActivated; patch it directly
+            var type = AccessTools.TypeByName("BlockSecureLoot");
+            if (type == null) return null;
+            return AccessTools.Method(type, "OnBlockActivated",
+                new[] { typeof(string), typeof(WorldBase), typeof(int),
+                        typeof(Vector3i), typeof(BlockValue), typeof(EntityPlayerLocal) });
+        }
+
+        static void Prefix(BlockValue _blockValue)
+        {
+            LootWindowNesConsoleRedirectPatch.IsNesConsoleOpening =
+                _blockValue.Block?.GetBlockName() == "nesConsole";
+        }
+    }
+
+    // Redirect GUIWindowManager.Open("looting") to "nesConsole" when the flag is set.
+    // This fires BEFORE the window group initializes, so the tile entity handoff is intact.
+    [HarmonyPatch]
+    public class LootWindowNesConsoleRedirectPatch
+    {
+        internal static bool IsNesConsoleOpening;
+
+        static MethodBase TargetMethod()
+        {
+            // Find the GUIWindowManager.Open overload that BlockSecureLoot uses
+            var t = typeof(GUIWindowManager);
+            var m = AccessTools.Method(t, "Open", new[] { typeof(string), typeof(bool) });
+            if (m != null) return m;
+
+            // Fallback: find first Open method with a string first parameter
+            foreach (var method in t.GetMethods(BindingFlags.Instance | BindingFlags.Public))
+            {
+                if (method.Name != "Open") continue;
+                var parameters = method.GetParameters();
+                if (parameters.Length > 0 && parameters[0].ParameterType == typeof(string))
+                    return method;
+            }
+            return null;
+        }
+
+        static void Prefix(ref string __0)
+        {
+            if (__0 == "looting" && IsNesConsoleOpening)
+            {
+                IsNesConsoleOpening = false;
+                __0 = "nesConsole";
+            }
         }
     }
 

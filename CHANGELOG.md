@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.0.2] - 2026-03-25
+
+### Changed
+- Converted nesConsole from Workstation to SecureLoot block class with a 1-slot loot container for cartridges
+- Restyled nesConsole window to match the game's power source panel aesthetic (dark grey background, black border)
+- nesConsole window group now uses XUiC_LootWindowGroup with LootContainer grid controller instead of WorkstationToolGrid
+- Cartridge detection (CartridgeHelper) reads from TileEntityLootContainer.items instead of TileEntityWorkstation.Tools
+
+### Fixed
+- Eliminated NullReferenceException crashes caused by XUiC_WorkstationWindowGroup requiring a recipe list that nesConsole doesn't have
+- Fixed XUi style key errors (medGrey, nearWhite) in nesConsole info panel
+
+### Removed
+- Removed workstation recipe list suppression Harmony patch (RecipeListSelectedEntryPatch) — no longer needed
+
 ## [1.0.1] - 2026-03-25
 
 ### Added

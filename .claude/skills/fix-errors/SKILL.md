@@ -50,6 +50,16 @@ powershell -ExecutionPolicy Bypass -File deploy.ps1
 
 If the build succeeds, report that the fix has been deployed and is ready to test. If it fails, diagnose and fix the build error, then retry.
 
+## Step 5: Update the knowledgebase
+
+After fixing errors, update the 7DTD modding knowledgebase at `../7KB/` with any new lessons learned. For each fix, consider:
+
+- Was the root cause a misunderstanding of a 7DTD API or system?
+- Did the fix reveal a gotcha or constraint that isn't documented?
+- Would the error have been avoided if the KB had better guidance?
+
+If yes, find the relevant KB file (e.g., `Workstations.md`, `XUi - Window System.md`, `Power Sources.md`, `Harmony Patching.md`) and add or update a section documenting the lesson. Use the `> **Warning:**` or `> **Gotcha:**` blockquote format for important caveats.
+
 ## Important notes
 
 - The mod's source files are in the current working directory (7nes project root)
