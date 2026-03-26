@@ -9,7 +9,7 @@ namespace SevenNes.Integration
         private static NesEmulatorWindow _instance;
 
         // === STATE ===
-        private enum UIState { Closed, Playing, Controls, NoSignalCalibrate }
+        private enum UIState { Closed, Playing, Controls }
         private UIState _uiState = UIState.Closed;
 
         // Hand hiding while using TV
@@ -234,7 +234,7 @@ namespace SevenNes.Integration
                 }
             }
 
-            // No cartridge found — resume if already loaded, otherwise show no-signal screen
+            // No cartridge found — resume if already loaded, otherwise do nothing
             if (_manager.HasLoadedRom)
             {
                 if (!_manager.IsRunning)
@@ -243,13 +243,6 @@ namespace SevenNes.Integration
                 EnsureScreenQuad();
                 UpdateScreenMaterial();
                 SetUIState(UIState.Playing);
-            }
-            else
-            {
-                _tvOn = true;
-                EnsureScreenQuad();
-                UpdateScreenMaterial();
-                SetUIState(UIState.NoSignalCalibrate);
             }
         }
 
@@ -462,13 +455,6 @@ namespace SevenNes.Integration
                     Cursor.visible = false;
                     Cursor.lockState = CursorLockMode.Locked;
                     break;
-                case UIState.NoSignalCalibrate:
-                    LockPlayer();
-                    HidePlayerHands();
-                    SetHUDVisible(false);
-                    Cursor.visible = false;
-                    Cursor.lockState = CursorLockMode.Locked;
-                    break;
             }
         }
 
@@ -604,9 +590,9 @@ namespace SevenNes.Integration
         }
 
         // No-signal screen calibration (adjustable at runtime via numpad)
-        private float _noSignalNormalOffset = 0.250f;
-        private float _noSignalVerticalOffset = 0.050f;
-        private float _noSignalWidth = 1.48f;
+        private const float _noSignalNormalOffset = 0.250f;
+        private const float _noSignalVerticalOffset = 0.060f;
+        private const float _noSignalWidth = 1.540f;
 
         private void UpdateQuadTransform()
         {
@@ -719,28 +705,19 @@ namespace SevenNes.Integration
                 return;
             }
 
-            // E closes play mode or no-signal calibration
-            if ((_uiState == UIState.Playing || _uiState == UIState.NoSignalCalibrate) && Input.GetKeyDown(KeyCode.E))
+            // E closes play mode
+            if (_uiState == UIState.Playing && Input.GetKeyDown(KeyCode.E))
             {
                 _isFullscreen = false;
                 ClearControllerInput();
                 _tvOn = true;
                 _closeCooldown = CloseCooldownDuration;
-                if (_uiState == UIState.Playing)
-                    Log.Out($"[7nes-calibrate] FINAL VALUES (yaw {_currentYaw}): normalOffset={_calibration[_currentYaw, 0]:F3}  verticalOffset={_calibration[_currentYaw, 1]:F3}  screenWidth={_calibration[_currentYaw, 2]:F3}  flip={_flipHorizontal[_currentYaw]}");
-                else
-                    Log.Out($"[7nes-calibrate] NO-SIGNAL FINAL VALUES: normalOffset={_noSignalNormalOffset:F3}  verticalOffset={_noSignalVerticalOffset:F3}  width={_noSignalWidth:F3}");
                 SetUIState(UIState.Closed);
             }
 
             if (_uiState == UIState.Playing)
             {
                 UpdatePlaying();
-            }
-
-            if (_uiState == UIState.NoSignalCalibrate)
-            {
-                UpdateNoSignalCalibrate();
             }
         }
 
@@ -830,24 +807,6 @@ namespace SevenNes.Integration
             _manager.RunFrame();
         }
 
-        private void UpdateNoSignalCalibrate()
-        {
-            bool changed = false;
-
-            if (Input.GetKeyDown(KeyCode.Keypad8)) { _noSignalVerticalOffset += OffsetStep; changed = true; }
-            if (Input.GetKeyDown(KeyCode.Keypad2)) { _noSignalVerticalOffset -= OffsetStep; changed = true; }
-            if (Input.GetKeyDown(KeyCode.Keypad6)) { _noSignalNormalOffset += OffsetStep; changed = true; }
-            if (Input.GetKeyDown(KeyCode.Keypad4)) { _noSignalNormalOffset -= OffsetStep; changed = true; }
-            if (Input.GetKeyDown(KeyCode.KeypadPlus))  { _noSignalWidth += ScaleStep; changed = true; }
-            if (Input.GetKeyDown(KeyCode.KeypadMinus)) { _noSignalWidth -= ScaleStep; changed = true; }
-
-            if (changed)
-            {
-                UpdateQuadTransform();
-                Log.Out($"[7nes-calibrate] NO-SIGNAL: normalOffset={_noSignalNormalOffset:F3}  verticalOffset={_noSignalVerticalOffset:F3}  width={_noSignalWidth:F3}");
-            }
-        }
-
         // === GUI RENDERING ===
         void InitStyles()
         {
@@ -900,9 +859,6 @@ namespace SevenNes.Integration
                     {
                         Event.current.Use();
                     }
-                    break;
-                case UIState.NoSignalCalibrate:
-                    DrawNoSignalCalibrationHUD();
                     break;
             }
         }
@@ -1138,28 +1094,6 @@ namespace SevenNes.Integration
             GUI.Label(new Rect(0, hintY, Screen.width, hintHeight),
                 _bindings.GetControlsHintString(),
                 hintStyle);
-        }
-
-        void DrawNoSignalCalibrationHUD()
-        {
-            var hudStyle = new GUIStyle(GUI.skin.label);
-            hudStyle.fontSize = 16;
-            hudStyle.normal.textColor = Color.yellow;
-
-            float x = 10, y = 10, lineH = 22;
-
-            string[] yawNames = { "North", "East", "South", "West" };
-            GUI.Label(new Rect(x, y, 500, lineH), $"--- NO-SIGNAL CALIBRATION (Rotation {_currentYaw}: {yawNames[_currentYaw]}) ---", hudStyle);
-            y += lineH;
-            GUI.Label(new Rect(x, y, 500, lineH), $"Normal offset (in/out): {_noSignalNormalOffset:F3}  [Numpad 4/6]", hudStyle);
-            y += lineH;
-            GUI.Label(new Rect(x, y, 500, lineH), $"Vertical offset (up/dn): {_noSignalVerticalOffset:F3}  [Numpad 8/2]", hudStyle);
-            y += lineH;
-            GUI.Label(new Rect(x, y, 500, lineH), $"Screen width:            {_noSignalWidth:F3}  [Numpad +/-]", hudStyle);
-            y += lineH;
-            GUI.Label(new Rect(x, y, 500, lineH), "Step: 0.01 (offset) / 0.02 (width)", hudStyle);
-            y += lineH;
-            GUI.Label(new Rect(x, y, 500, lineH), "Press E to exit and log final values", hudStyle);
         }
 
         void DrawCalibrationHUD()

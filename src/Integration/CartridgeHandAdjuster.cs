@@ -42,7 +42,38 @@ namespace SevenNes.Integration
             }
 
             if (_holdingCartridge)
+            {
                 HideHands(player);
+                // Re-apply label every frame in case the game resets the material
+                TryApplyHeldLabel(player, itemName);
+            }
+        }
+
+        /// <summary>
+        /// Finds the held cartridge model on the player and applies the label texture.
+        /// Returns true if the label was applied (or confirmed no sticker to apply to),
+        /// false if the model isn't ready yet (will retry next frame).
+        /// </summary>
+        private bool TryApplyHeldLabel(EntityPlayerLocal player, string itemName)
+        {
+            // Search the player hierarchy for any transform named "sticker_3"
+            // (part of the cartridge prefab). The held item model uses MeshRenderers.
+            var sticker = FindInHierarchy(player.transform, "sticker_3");
+            if (sticker == null) return false;
+
+            CartridgeLabelManager.ApplyLabel(sticker.parent ?? sticker, itemName);
+            return true;
+        }
+
+        private static Transform FindInHierarchy(Transform root, string name)
+        {
+            if (root.name == name) return root;
+            for (int i = 0; i < root.childCount; i++)
+            {
+                var found = FindInHierarchy(root.GetChild(i), name);
+                if (found != null) return found;
+            }
+            return null;
         }
 
         private void HideHands(EntityPlayerLocal player)

@@ -15,7 +15,8 @@
       "Bash(grep -r \"CustomIcon\\\\|Meshfile\\\\|DropMeshfile\\\\|HoldType\\\\|Material\\\\|EconomicValue\\\\|Weight\" c:UsersRichardWebstormProjects7KB --include=*.md)",
       "Bash(grep -l \"property\\\\|container\\\\|loot\\\\|Secure\" *.md)",
       "Bash(git worktree:*)",
-      "Bash(find c:UsersRichardWebstormProjects7nessrc -name *.cs -type f)"
+      "Bash(find c:UsersRichardWebstormProjects7nessrc -name *.cs -type f)",
+      "Bash(dotnet build:*)"
     ]
   }
 }

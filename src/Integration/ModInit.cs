@@ -26,6 +26,7 @@ namespace SevenNes.Integration
             // Generate item configs from ROMs before the game loads Config XMLs
             NesCartridgeItems.GenerateItemConfigs(ModPath, RomsPath);
 
+            CartridgeLabelManager.LoadLabels(RomsPath);
             LoadCustomIconData();
             NesInputBindings.Instance.SetSavePath(ModPath);
 
