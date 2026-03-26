@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.6] - 2026-03-26
+
+### Added
+- Quick-insert cartridge: left-click a nesConsole block while holding a cartridge to insert it directly without opening the inventory, swapping out any existing cartridge
+
 ## [1.0.5] - 2026-03-26
 
 ### Added

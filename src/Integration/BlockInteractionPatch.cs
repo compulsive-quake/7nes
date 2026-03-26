@@ -276,7 +276,9 @@ namespace SevenNes.Integration
 
     // === Redirect looting window to nesConsole custom window group ===
 
-    // Track when a nesConsole block is being activated so the redirect knows to fire
+    // Track when a nesConsole block is being activated so the redirect knows to fire.
+    // Also handles quick-insert: left-click (default "open" command) while holding a
+    // nesCart_* item inserts the cartridge directly into the console's slot.
     [HarmonyPatch]
     public class NesConsoleActivationTracker
     {

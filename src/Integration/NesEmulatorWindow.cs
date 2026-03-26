@@ -322,6 +322,71 @@ namespace SevenNes.Integration
             return PowerHelper.IsPowered(world, 0, _blockPos);
         }
 
+        private void TryQuickInsertCartridge()
+        {
+            var player = GameManager.Instance?.World?.GetPrimaryPlayer();
+            if (player == null) return;
+
+            // Check if player is holding a cartridge
+            var holding = player.inventory?.holdingItemItemValue;
+            if (holding == null || holding.IsEmpty() || holding.ItemClass == null) return;
+            if (!holding.ItemClass.GetItemName().StartsWith("nesCart_")) return;
+
+            // Raycast from player camera to find what block they're looking at
+            var cam = player.cameraTransform;
+            if (cam == null) return;
+
+            if (!Physics.Raycast(new Ray(cam.position, cam.forward), out RaycastHit hit, 3.5f))
+                return;
+
+            // Get the block position from the hit point
+            // Step slightly into the block from the hit face to get the correct voxel
+            Vector3 probePoint = hit.point + cam.forward * 0.05f;
+            var blockPos = new Vector3i(
+                Mathf.FloorToInt(probePoint.x),
+                Mathf.FloorToInt(probePoint.y),
+                Mathf.FloorToInt(probePoint.z));
+
+            var world = GameManager.Instance.World;
+            var bv = world.GetBlock(blockPos);
+            if (bv.Block == null || bv.Block.GetBlockName() != "nesConsole") return;
+
+            var te = world.GetTileEntity(0, blockPos) as TileEntityLootContainer;
+            if (te == null) return;
+
+            // Get what's currently in the slot
+            var oldSlot = (te.items != null && te.items.Length > 0) ? te.items[0] : ItemStack.Empty;
+
+            // Insert the held cartridge
+            te.UpdateSlot(0, new ItemStack(holding.Clone(), 1));
+
+            // Remove one from the player's hand
+            var holdingStack = player.inventory.holdingItemStack;
+            if (holdingStack.count > 1)
+            {
+                holdingStack.count--;
+                player.inventory.SetItem(player.inventory.holdingItemIdx, holdingStack);
+            }
+            else
+            {
+                player.inventory.SetItem(player.inventory.holdingItemIdx, ItemStack.Empty);
+            }
+
+            // Return old cartridge to player if there was one
+            if (!oldSlot.IsEmpty())
+            {
+                if (!player.inventory.AddItem(oldSlot))
+                {
+                    GameManager.Instance.ItemDropServer(
+                        new ItemStack(oldSlot.itemValue, oldSlot.count),
+                        player.GetPosition(), Vector3.zero);
+                }
+            }
+
+            te.SetModified();
+            Log.Out($"[7nes] Quick-inserted cartridge: {holding.ItemClass.GetItemName()}");
+        }
+
         private void CheckCartridgeState()
         {
             var world = GameManager.Instance?.World;
@@ -625,6 +690,12 @@ namespace SevenNes.Integration
                     _cartridgeCheckTimer = 0f;
                     CheckCartridgeState();
                 }
+            }
+
+            // Quick-insert: left-click while holding a cartridge and looking at a nesConsole
+            if (Input.GetMouseButtonDown(0) && _uiState == UIState.Closed)
+            {
+                TryQuickInsertCartridge();
             }
 
             // Background mode: keep running emulator frames even when UI is closed
