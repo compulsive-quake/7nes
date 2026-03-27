@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.7] - 2026-03-27
+
+### Changed
+- Calibrated all 4 rotations for both small and large NES TV screen positioning
+- Numpad calibration now uses two-speed movement: fine step (0.001) on tap, fast step (0.01) after holding 1 second
+- Holding numpad keys continuously moves the image instead of requiring repeated presses
+
 ## [1.0.6] - 2026-03-26
 
 ### Added

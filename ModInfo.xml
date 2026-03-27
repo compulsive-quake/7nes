@@ -2,7 +2,7 @@
 <xml>
     <Name value="7nes" />
     <DisplayName value="7nes - NES Emulator TV" />
-    <Version value="1.0.6" />
+    <Version value="1.0.7" />
     <Description value="Adds a TV block with a working NES emulator. Place ROMs in the Roms folder, craft the NES TV, and press E to play!" />
     <Author value="7nes" />
     <Website value="" />

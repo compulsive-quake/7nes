@@ -41,19 +41,19 @@ namespace SevenNes.Integration
         // Per-rotation calibration: [normalOffset, verticalOffset, screenWidth, horizontalOffset] for each yaw (0-3)
         private static readonly float[,] DefaultCalibration = new float[,]
         {
-            { 0.250f, 0.080f, 0.870f, 0f }, // Rotation 0 (North)
+            { -0.254f, 0.074f, 0.854f, 0f }, // Rotation 0 (North)
             { 0.250f, 0.080f, 0.870f, 0f }, // Rotation 1 (East)
-            { 0.250f, 0.080f, 0.870f, 0f }, // Rotation 2 (South)
+            { -0.255f, 0.080f, 0.870f, 0f }, // Rotation 2 (South)
             { 0.250f, 0.080f, 0.870f, 0f }, // Rotation 3 (West)
         };
 
         // Large TV calibration: [normalOffset, verticalOffset, screenWidth, horizontalOffset]
         private static readonly float[,] LargeCalibration = new float[,]
         {
-            { 0.250f, 0.080f, 2.600f, 0f }, // Rotation 0 (North)
-            { 0.250f, 0.080f, 2.600f, 0f }, // Rotation 1 (East)
-            { 0.250f, 0.080f, 2.600f, 0f }, // Rotation 2 (South)
-            { 0.280f, -0.090f, 1.360f, -1.010f }, // Rotation 3 (West)
+            { -0.280f, -0.090f, 1.360f, -1.000f }, // Rotation 0 (North)
+            { 0.280f, -0.090f, 1.360f, -1.000f }, // Rotation 1 (East)
+            { -0.280f, -0.090f, 1.360f, -1.000f }, // Rotation 2 (South)
+            { 0.280f, -0.090f, 1.360f, -1.000f }, // Rotation 3 (West)
         };
 
         // Per-rotation horizontal flip (true = mirror the texture)
@@ -68,8 +68,12 @@ namespace SevenNes.Integration
         private Vector3 _screenNormal;
         private bool _isLargeTV;
 
-        private const float OffsetStep = 0.01f;
-        private const float ScaleStep = 0.02f;
+        private const float OffsetStepFine = 0.001f;
+        private const float OffsetStepFast = 0.01f;
+        private const float ScaleStepFine = 0.002f;
+        private const float ScaleStepFast = 0.02f;
+        private const float HoldThreshold = 1.0f;
+        private readonly Dictionary<KeyCode, float> _keyHoldStart = new Dictionary<KeyCode, float>();
 
         // Block info for re-creating quad
         private Vector3i _blockPos;
@@ -839,14 +843,14 @@ namespace SevenNes.Integration
             int y = _currentYaw;
             var cal = _isLargeTV ? _calibrationLarge : _calibration;
 
-            if (Input.GetKeyDown(KeyCode.Keypad8)) { cal[y, 1] += OffsetStep; changed = true; } // up
-            if (Input.GetKeyDown(KeyCode.Keypad2)) { cal[y, 1] -= OffsetStep; changed = true; } // down
-            if (Input.GetKeyDown(KeyCode.Keypad6)) { cal[y, 3] += OffsetStep; changed = true; } // right
-            if (Input.GetKeyDown(KeyCode.Keypad4)) { cal[y, 3] -= OffsetStep; changed = true; } // left
-            if (Input.GetKeyDown(KeyCode.Keypad9)) { cal[y, 0] += OffsetStep; changed = true; } // in (towards screen)
-            if (Input.GetKeyDown(KeyCode.Keypad7)) { cal[y, 0] -= OffsetStep; changed = true; } // out (away from screen)
-            if (Input.GetKeyDown(KeyCode.KeypadPlus))  { cal[y, 2] += ScaleStep; changed = true; }
-            if (Input.GetKeyDown(KeyCode.KeypadMinus)) { cal[y, 2] -= ScaleStep; changed = true; }
+            if (CalibKey(KeyCode.Keypad8, out float s8)) { cal[y, 1] += s8; changed = true; } // up
+            if (CalibKey(KeyCode.Keypad2, out float s2)) { cal[y, 1] -= s2; changed = true; } // down
+            if (CalibKey(KeyCode.Keypad6, out float s6)) { cal[y, 3] += s6; changed = true; } // right
+            if (CalibKey(KeyCode.Keypad4, out float s4)) { cal[y, 3] -= s4; changed = true; } // left
+            if (CalibKey(KeyCode.Keypad9, out float s9)) { cal[y, 0] += s9; changed = true; } // in (towards screen)
+            if (CalibKey(KeyCode.Keypad7, out float s7)) { cal[y, 0] -= s7; changed = true; } // out (away from screen)
+            if (CalibKey(KeyCode.KeypadPlus, out float sp, true))  { cal[y, 2] += sp; changed = true; }
+            if (CalibKey(KeyCode.KeypadMinus, out float sm, true)) { cal[y, 2] -= sm; changed = true; }
 
             if (Input.GetKeyDown(KeyCode.Keypad0))
             {
@@ -866,6 +870,26 @@ namespace SevenNes.Integration
                 _manager.SetButton(i, _bindings.IsPressed(i));
 
             _manager.RunFrame();
+        }
+
+        private bool CalibKey(KeyCode key, out float step, bool isScale = false)
+        {
+            if (Input.GetKeyDown(key))
+            {
+                _keyHoldStart[key] = Time.time;
+                step = isScale ? ScaleStepFine : OffsetStepFine;
+                return true;
+            }
+            if (Input.GetKey(key))
+            {
+                float held = Time.time - (_keyHoldStart.ContainsKey(key) ? _keyHoldStart[key] : Time.time);
+                step = held >= HoldThreshold
+                    ? (isScale ? ScaleStepFast : OffsetStepFast)
+                    : (isScale ? ScaleStepFine : OffsetStepFine);
+                return true;
+            }
+            step = 0;
+            return false;
         }
 
         // === GUI RENDERING ===
@@ -1181,7 +1205,7 @@ namespace SevenNes.Integration
             y += lineH;
             GUI.Label(new Rect(x, y, 400, lineH), $"Flip horizontal:         {_flipHorizontal[_currentYaw]}      [Numpad 0]", hudStyle);
             y += lineH;
-            GUI.Label(new Rect(x, y, 400, lineH), "Step: 0.01 (offset) / 0.02 (size)", hudStyle);
+            GUI.Label(new Rect(x, y, 400, lineH), "Step: 0.001 (tap) / 0.01 (hold 1s)  size: 0.002 / 0.02", hudStyle);
         }
 
         // === CLEANUP ===
