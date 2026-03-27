@@ -53,7 +53,7 @@ namespace SevenNes.Integration
             { 0.250f, 0.080f, 2.600f, 0f }, // Rotation 0 (North)
             { 0.250f, 0.080f, 2.600f, 0f }, // Rotation 1 (East)
             { 0.250f, 0.080f, 2.600f, 0f }, // Rotation 2 (South)
-            { 0.250f, 0.080f, 2.600f, 0f }, // Rotation 3 (West)
+            { 0.280f, -0.090f, 1.360f, -1.010f }, // Rotation 3 (West)
         };
 
         // Per-rotation horizontal flip (true = mirror the texture)
@@ -87,6 +87,7 @@ namespace SevenNes.Integration
         // Fullscreen overlay mode
         private bool _isFullscreen;
         private bool _fullscreenKeyHeld;
+        private Material _fullscreenMaterial;
 
         // Notification (brief on-screen message)
         private string _notification;
@@ -820,6 +821,9 @@ namespace SevenNes.Integration
                 if (pressed && !_fullscreenKeyHeld)
                 {
                     _isFullscreen = !_isFullscreen;
+                    // Hide/show the in-world quad so it doesn't render behind the fullscreen overlay
+                    if (_screenQuad != null)
+                        _screenQuad.SetActive(!_isFullscreen);
                     Log.Out($"[7nes] Fullscreen={_isFullscreen} (key={_bindings.FullscreenKey})");
                 }
                 _fullscreenKeyHeld = pressed;
@@ -977,10 +981,11 @@ namespace SevenNes.Integration
             float x = (screenW - drawW) / 2f;
             float y = (screenH - drawH) / 2f;
 
-            // Draw NES screen — use simple GUI.DrawTexture for reliability.
-            // Colors may be slightly off vs the in-world quad (gamma difference)
-            // but this guarantees visibility in all 7DTD rendering configurations.
+            // Disable sRGB writes to prevent gamma correction that tints the colors
+            var prevSRGB = GL.sRGBWrite;
+            GL.sRGBWrite = false;
             GUI.DrawTexture(new Rect(x, y, drawW, drawH), tex, ScaleMode.StretchToFill);
+            GL.sRGBWrite = prevSRGB;
         }
 
         // === CONTROLS DIALOG ===
@@ -1183,6 +1188,7 @@ namespace SevenNes.Integration
         void OnDestroy()
         {
             DestroyScreenQuad();
+            if (_fullscreenMaterial != null) { Destroy(_fullscreenMaterial); _fullscreenMaterial = null; }
         }
     }
 }

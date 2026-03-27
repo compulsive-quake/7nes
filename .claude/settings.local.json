@@ -16,7 +16,9 @@
       "Bash(grep -l \"property\\\\|container\\\\|loot\\\\|Secure\" *.md)",
       "Bash(git worktree:*)",
       "Bash(find c:UsersRichardWebstormProjects7nessrc -name *.cs -type f)",
-      "Bash(dotnet build:*)"
+      "Bash(dotnet build:*)",
+      "Bash(curl -s http://localhost:7860/api/status)",
+      "Bash(curl -s http://localhost:7860/api/console)"
     ]
   }
 }
