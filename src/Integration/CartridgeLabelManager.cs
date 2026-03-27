@@ -11,6 +11,7 @@ namespace SevenNes.Integration
     public static class CartridgeLabelManager
     {
         private static readonly Dictionary<string, Texture2D> _labelTextures = new Dictionary<string, Texture2D>();
+        private static Texture2D _defaultLabel;
 
         /// <summary>
         /// Scans Roms/labels/ for PNG files matching ROM filenames and caches them
@@ -19,6 +20,7 @@ namespace SevenNes.Integration
         public static void LoadLabels(string romsPath)
         {
             _labelTextures.Clear();
+            LoadDefaultLabel();
 
             var labelsDir = Path.Combine(romsPath, "label");
             if (!Directory.Exists(labelsDir))
@@ -52,14 +54,33 @@ namespace SevenNes.Integration
             Log.Out($"[7nes] Loaded {count} cartridge label(s) from {labelsDir}");
         }
 
+        private static void LoadDefaultLabel()
+        {
+            if (_defaultLabel != null) return;
+
+            string path = Path.Combine(ModInit.ModPath, "Resources", "default_label.png");
+            if (File.Exists(path))
+            {
+                _defaultLabel = new Texture2D(256, 512, TextureFormat.RGBA32, false);
+                _defaultLabel.LoadImage(File.ReadAllBytes(path));
+                _defaultLabel.filterMode = FilterMode.Bilinear;
+                _defaultLabel.Apply();
+                Log.Out("[7nes] Loaded default label texture");
+            }
+            else
+            {
+                Log.Warning("[7nes] Default label not found at " + path);
+            }
+        }
+
         /// <summary>
-        /// Returns the label texture for the given item name, or null if no label exists.
+        /// Returns the label texture for the given item name, or the default transparent label.
         /// </summary>
         public static Texture2D GetLabelTexture(string itemName)
         {
             if (itemName != null && _labelTextures.TryGetValue(itemName, out var tex))
                 return tex;
-            return null;
+            return _defaultLabel;
         }
 
         /// <summary>
@@ -90,10 +111,19 @@ namespace SevenNes.Integration
                     if (standardShader != null)
                     {
                         mat.shader = standardShader;
-                        mat.color = Color.white;
-                        mat.SetFloat("_Mode", 0);
                         mat.SetFloat("_Metallic", 0f);
                         mat.SetFloat("_Glossiness", 0.3f);
+
+                        // Enable transparency for the default (transparent) label
+                        mat.SetFloat("_Mode", 3); // Transparent
+                        mat.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+                        mat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+                        mat.SetInt("_ZWrite", 0);
+                        mat.DisableKeyword("_ALPHATEST_ON");
+                        mat.EnableKeyword("_ALPHABLEND_ON");
+                        mat.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+                        mat.renderQueue = 3000;
+                        mat.color = Color.white;
                     }
                     mat.mainTexture = labelTex;
                 }

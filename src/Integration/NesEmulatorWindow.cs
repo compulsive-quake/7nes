@@ -38,22 +38,22 @@ namespace SevenNes.Integration
         private const float CartridgeCheckInterval = 0.25f;
         private string _lastCartridgeName;
 
-        // Per-rotation calibration: [normalOffset, verticalOffset, screenWidth] for each yaw (0-3)
+        // Per-rotation calibration: [normalOffset, verticalOffset, screenWidth, horizontalOffset] for each yaw (0-3)
         private static readonly float[,] DefaultCalibration = new float[,]
         {
-            { 0.250f, 0.080f, 0.870f }, // Rotation 0 (North)
-            { 0.250f, 0.080f, 0.870f }, // Rotation 1 (East)
-            { 0.250f, 0.080f, 0.870f }, // Rotation 2 (South)
-            { 0.250f, 0.080f, 0.870f }, // Rotation 3 (West)
+            { 0.250f, 0.080f, 0.870f, 0f }, // Rotation 0 (North)
+            { 0.250f, 0.080f, 0.870f, 0f }, // Rotation 1 (East)
+            { 0.250f, 0.080f, 0.870f, 0f }, // Rotation 2 (South)
+            { 0.250f, 0.080f, 0.870f, 0f }, // Rotation 3 (West)
         };
 
-        // Large TV calibration: [normalOffset, verticalOffset, screenWidth]
+        // Large TV calibration: [normalOffset, verticalOffset, screenWidth, horizontalOffset]
         private static readonly float[,] LargeCalibration = new float[,]
         {
-            { 0.250f, 0.080f, 2.600f }, // Rotation 0 (North)
-            { 0.250f, 0.080f, 2.600f }, // Rotation 1 (East)
-            { 0.250f, 0.080f, 2.600f }, // Rotation 2 (South)
-            { 0.250f, 0.080f, 2.600f }, // Rotation 3 (West)
+            { 0.250f, 0.080f, 2.600f, 0f }, // Rotation 0 (North)
+            { 0.250f, 0.080f, 2.600f, 0f }, // Rotation 1 (East)
+            { 0.250f, 0.080f, 2.600f, 0f }, // Rotation 2 (South)
+            { 0.250f, 0.080f, 2.600f, 0f }, // Rotation 3 (West)
         };
 
         // Per-rotation horizontal flip (true = mirror the texture)
@@ -117,12 +117,12 @@ namespace SevenNes.Integration
             _dimOverlay.SetPixel(0, 0, new Color(0, 0, 0, 0.75f));
             _dimOverlay.Apply();
 
-            _calibration = new float[4, 3];
-            _calibrationLarge = new float[4, 3];
+            _calibration = new float[4, 4];
+            _calibrationLarge = new float[4, 4];
             _flipHorizontal = new bool[4];
             for (int i = 0; i < 4; i++)
             {
-                for (int j = 0; j < 3; j++)
+                for (int j = 0; j < 4; j++)
                 {
                     _calibration[i, j] = DefaultCalibration[i, j];
                     _calibrationLarge[i, j] = LargeCalibration[i, j];
@@ -656,7 +656,9 @@ namespace SevenNes.Integration
             float noSignalW = _isLargeTV ? _noSignalWidthLarge : _noSignalWidth;
             float screenWidth = showingNoSignal ? noSignalW : cal[_currentYaw, 2];
 
-            Vector3 screenCenter = _blockCenter + _screenNormal * normalOffset + Vector3.up * verticalOffset;
+            float horizontalOffset = showingNoSignal ? 0f : cal[_currentYaw, 3];
+            Vector3 horizontalDir = Vector3.Cross(Vector3.up, _screenNormal);
+            Vector3 screenCenter = _blockCenter + _screenNormal * normalOffset + Vector3.up * verticalOffset + horizontalDir * horizontalOffset;
             _screenQuad.transform.position = screenCenter;
 
             // Use the displayed texture's native aspect ratio
@@ -831,13 +833,16 @@ namespace SevenNes.Integration
             // --- Calibration controls (numpad) ---
             bool changed = false;
             int y = _currentYaw;
+            var cal = _isLargeTV ? _calibrationLarge : _calibration;
 
-            if (Input.GetKeyDown(KeyCode.Keypad8)) { _calibration[y, 1] += OffsetStep; changed = true; }
-            if (Input.GetKeyDown(KeyCode.Keypad2)) { _calibration[y, 1] -= OffsetStep; changed = true; }
-            if (Input.GetKeyDown(KeyCode.Keypad6)) { _calibration[y, 0] += OffsetStep; changed = true; }
-            if (Input.GetKeyDown(KeyCode.Keypad4)) { _calibration[y, 0] -= OffsetStep; changed = true; }
-            if (Input.GetKeyDown(KeyCode.KeypadPlus))  { _calibration[y, 2] += ScaleStep; changed = true; }
-            if (Input.GetKeyDown(KeyCode.KeypadMinus)) { _calibration[y, 2] -= ScaleStep; changed = true; }
+            if (Input.GetKeyDown(KeyCode.Keypad8)) { cal[y, 1] += OffsetStep; changed = true; } // up
+            if (Input.GetKeyDown(KeyCode.Keypad2)) { cal[y, 1] -= OffsetStep; changed = true; } // down
+            if (Input.GetKeyDown(KeyCode.Keypad6)) { cal[y, 3] += OffsetStep; changed = true; } // right
+            if (Input.GetKeyDown(KeyCode.Keypad4)) { cal[y, 3] -= OffsetStep; changed = true; } // left
+            if (Input.GetKeyDown(KeyCode.Keypad9)) { cal[y, 0] += OffsetStep; changed = true; } // in (towards screen)
+            if (Input.GetKeyDown(KeyCode.Keypad7)) { cal[y, 0] -= OffsetStep; changed = true; } // out (away from screen)
+            if (Input.GetKeyDown(KeyCode.KeypadPlus))  { cal[y, 2] += ScaleStep; changed = true; }
+            if (Input.GetKeyDown(KeyCode.KeypadMinus)) { cal[y, 2] -= ScaleStep; changed = true; }
 
             if (Input.GetKeyDown(KeyCode.Keypad0))
             {
@@ -849,7 +854,7 @@ namespace SevenNes.Integration
             if (changed)
             {
                 UpdateQuadTransform();
-                Log.Out($"[7nes-calibrate] yaw={_currentYaw} normalOffset={_calibration[y, 0]:F3}  verticalOffset={_calibration[y, 1]:F3}  screenWidth={_calibration[y, 2]:F3}  flip={_flipHorizontal[y]}");
+                Log.Out($"[7nes-calibrate] {(_isLargeTV ? "LARGE " : "")}yaw={_currentYaw} normal={cal[y, 0]:F3}  vert={cal[y, 1]:F3}  width={cal[y, 2]:F3}  horiz={cal[y, 3]:F3}  flip={_flipHorizontal[y]}");
             }
 
             // NES controller input — use configurable bindings
@@ -1156,14 +1161,18 @@ namespace SevenNes.Integration
 
             float x = 10, y = 10, lineH = 20;
 
+            var cal = _isLargeTV ? _calibrationLarge : _calibration;
+            string tvType = _isLargeTV ? "Large" : "Small";
             string[] yawNames = { "North", "East", "South", "West" };
-            GUI.Label(new Rect(x, y, 400, lineH), $"--- SCREEN CALIBRATION (Rotation {_currentYaw}: {yawNames[_currentYaw]}) ---", hudStyle);
+            GUI.Label(new Rect(x, y, 500, lineH), $"--- SCREEN CALIBRATION [{tvType}] (Rotation {_currentYaw}: {yawNames[_currentYaw]}) ---", hudStyle);
             y += lineH;
-            GUI.Label(new Rect(x, y, 400, lineH), $"Normal offset (in/out): {_calibration[_currentYaw, 0]:F3}  [Numpad 4/6]", hudStyle);
+            GUI.Label(new Rect(x, y, 400, lineH), $"Horizontal offset (L/R): {cal[_currentYaw, 3]:F3}  [Numpad 4/6]", hudStyle);
             y += lineH;
-            GUI.Label(new Rect(x, y, 400, lineH), $"Vertical offset (up/dn): {_calibration[_currentYaw, 1]:F3}  [Numpad 8/2]", hudStyle);
+            GUI.Label(new Rect(x, y, 400, lineH), $"Vertical offset (up/dn): {cal[_currentYaw, 1]:F3}  [Numpad 8/2]", hudStyle);
             y += lineH;
-            GUI.Label(new Rect(x, y, 400, lineH), $"Screen width (size):     {_calibration[_currentYaw, 2]:F3}  [Numpad +/-]", hudStyle);
+            GUI.Label(new Rect(x, y, 400, lineH), $"Normal offset (in/out):  {cal[_currentYaw, 0]:F3}  [Numpad 7/9]", hudStyle);
+            y += lineH;
+            GUI.Label(new Rect(x, y, 400, lineH), $"Screen width (size):     {cal[_currentYaw, 2]:F3}  [Numpad +/-]", hudStyle);
             y += lineH;
             GUI.Label(new Rect(x, y, 400, lineH), $"Flip horizontal:         {_flipHorizontal[_currentYaw]}      [Numpad 0]", hudStyle);
             y += lineH;
