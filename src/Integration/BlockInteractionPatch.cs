@@ -5,6 +5,15 @@ using UnityEngine;
 
 namespace SevenNes.Integration
 {
+    // Helper to identify any NES TV block variant
+    public static class NesBlockHelper
+    {
+        public static bool IsNesTV(string blockName)
+        {
+            return blockName == "nesTV" || blockName == "nesTVLarge";
+        }
+    }
+
     // === BlockPowered patches (nesTV uses Class="Powered") ===
 
     [HarmonyPatch(typeof(BlockPowered))]
@@ -15,7 +24,7 @@ namespace SevenNes.Integration
         static bool Prefix(string _commandName, WorldBase _world, int _cIdx, Vector3i _blockPos, BlockValue _blockValue, EntityPlayerLocal _player)
         {
             Block block = _blockValue.Block;
-            if (block == null || block.GetBlockName() != "nesTV") return true;
+            if (block == null || !NesBlockHelper.IsNesTV(block.GetBlockName())) return true;
 
             var window = NesEmulatorWindow.Instance;
             bool isPowered = PowerHelper.IsPowered(_world, _cIdx, _blockPos);
@@ -48,7 +57,7 @@ namespace SevenNes.Integration
     {
         static bool Prefix(BlockPowered __instance, ref string __result, WorldBase _world, BlockValue _blockValue, int _clrIdx, Vector3i _blockPos, EntityAlive _entityFocusing)
         {
-            if (__instance.GetBlockName() != "nesTV") return true;
+            if (!NesBlockHelper.IsNesTV(__instance.GetBlockName())) return true;
 
             bool isPowered = PowerHelper.IsPowered(_world, _clrIdx, _blockPos);
 
@@ -69,7 +78,7 @@ namespace SevenNes.Integration
     {
         static bool Prefix(BlockPowered __instance, ref bool __result, WorldBase _world, BlockValue _blockValue, int _clrIdx, Vector3i _blockPos, EntityAlive _entityFocusing)
         {
-            if (__instance.GetBlockName() == "nesTV")
+            if (NesBlockHelper.IsNesTV(__instance.GetBlockName()))
             {
                 __result = true;
                 return false;
@@ -84,7 +93,7 @@ namespace SevenNes.Integration
     {
         static bool Prefix(BlockPowered __instance, ref BlockActivationCommand[] __result, WorldBase _world, BlockValue _blockValue, int _clrIdx, Vector3i _blockPos, EntityAlive _entityFocusing)
         {
-            if (__instance.GetBlockName() != "nesTV") return true;
+            if (!NesBlockHelper.IsNesTV(__instance.GetBlockName())) return true;
 
             ModInit.EnsureIconsInjected();
 
@@ -127,7 +136,7 @@ namespace SevenNes.Integration
         static bool Prefix(string _commandName, WorldBase _world, int _cIdx, Vector3i _blockPos, BlockValue _blockValue, EntityPlayerLocal _player)
         {
             Block block = _blockValue.Block;
-            if (block == null || block.GetBlockName() != "nesTV") return true;
+            if (block == null || !NesBlockHelper.IsNesTV(block.GetBlockName())) return true;
             if (block is BlockPowered) return true; // Handled by BlockPowered patch
 
             var window = NesEmulatorWindow.Instance;
@@ -158,7 +167,7 @@ namespace SevenNes.Integration
     {
         static bool Prefix(Block __instance, ref string __result, WorldBase _world, BlockValue _blockValue, int _clrIdx, Vector3i _blockPos, EntityAlive _entityFocusing)
         {
-            if (__instance.GetBlockName() != "nesTV") return true;
+            if (!NesBlockHelper.IsNesTV(__instance.GetBlockName())) return true;
             if (__instance is BlockPowered) return true; // Handled by BlockPowered patch
 
             __result = "Press [action:activate] to use NES TV";
@@ -172,7 +181,7 @@ namespace SevenNes.Integration
     {
         static bool Prefix(Block __instance, ref bool __result, WorldBase _world, BlockValue _blockValue, int _clrIdx, Vector3i _blockPos, EntityAlive _entityFocusing)
         {
-            if (__instance.GetBlockName() != "nesTV") return true;
+            if (!NesBlockHelper.IsNesTV(__instance.GetBlockName())) return true;
             if (__instance is BlockPowered) return true;
 
             __result = true;
@@ -186,7 +195,7 @@ namespace SevenNes.Integration
     {
         static bool Prefix(Block __instance, ref BlockActivationCommand[] __result, WorldBase _world, BlockValue _blockValue, int _clrIdx, Vector3i _blockPos, EntityAlive _entityFocusing)
         {
-            if (__instance.GetBlockName() != "nesTV") return true;
+            if (!NesBlockHelper.IsNesTV(__instance.GetBlockName())) return true;
             if (__instance is BlockPowered) return true;
 
             ModInit.EnsureIconsInjected();
@@ -242,14 +251,15 @@ namespace SevenNes.Integration
     public static class CartridgeHelper
     {
         /// <summary>
-        /// Searches blocks within 1 block of the nesTV for a nesConsole with a cartridge inserted.
+        /// Searches blocks near the nesTV for a nesConsole with a cartridge inserted.
+        /// Uses a larger search radius for multi-block TVs (nesTVLarge).
         /// Returns the cartridge item name (e.g. "nesCart_ContraUSA") or null if none found.
         /// </summary>
-        public static string FindNearbyCartridge(WorldBase world, int clrIdx, Vector3i tvPos)
+        public static string FindNearbyCartridge(WorldBase world, int clrIdx, Vector3i tvPos, int radius = 1)
         {
-            for (int dx = -1; dx <= 1; dx++)
-            for (int dy = -1; dy <= 1; dy++)
-            for (int dz = -1; dz <= 1; dz++)
+            for (int dx = -radius; dx <= radius; dx++)
+            for (int dy = -radius; dy <= radius; dy++)
+            for (int dz = -radius; dz <= radius; dz++)
             {
                 if (dx == 0 && dy == 0 && dz == 0) continue;
                 var pos = new Vector3i(tvPos.x + dx, tvPos.y + dy, tvPos.z + dz);

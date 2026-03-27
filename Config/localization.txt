@@ -7,6 +7,8 @@ blockcommand_choose_game,blocks,Block,FALSE,FALSE,Choose Game
 blockcommand_turn_on,blocks,Block,FALSE,FALSE,Turn On
 blockcommand_turn_off,blocks,Block,FALSE,FALSE,Turn Off
 blockcommand_controls,blocks,Block,FALSE,FALSE,Controls
+nesTVLarge,blocks,Block,FALSE,FALSE,NES TV Large
+nesTVLarge_desc,blocks,Block,FALSE,FALSE,A large TV with a built-in NES emulator. Press E to play!
 nesConsole,blocks,Block,FALSE,FALSE,NES Console
 nesConsole_desc,blocks,Block,FALSE,FALSE,A Nintendo Entertainment System console. Insert a game cartridge to play!
 nesConsole_activate,blocks,Block,FALSE,FALSE,Open NES Console

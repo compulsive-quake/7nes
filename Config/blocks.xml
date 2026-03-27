@@ -10,6 +10,16 @@
             <property name="DescriptionKey" value="nesTV_desc"/>
             <property name="ActivationText" value="nesTV_activate"/>
         </block>
+        <block name="nesTVLarge">
+            <property name="CreativeMode" value="Player"/>
+            <property name="Class" value="Powered"/>
+            <property name="RequiredPower" value="5"/>
+            <property name="CustomIcon" value="tvLargeStand3x2"/>
+            <property name="Extends" value="tvLargeStand3x2"/>
+            <property name="DisplayInfo" value="Name"/>
+            <property name="DescriptionKey" value="nesTVLarge_desc"/>
+            <property name="ActivationText" value="nesTV_activate"/>
+        </block>
         <block name="nesConsole">
             <property name="CreativeMode" value="Player"/>
             <property name="Class" value="SecureLoot"/>

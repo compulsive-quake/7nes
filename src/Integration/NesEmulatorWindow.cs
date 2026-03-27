@@ -47,15 +47,26 @@ namespace SevenNes.Integration
             { 0.250f, 0.080f, 0.870f }, // Rotation 3 (West)
         };
 
+        // Large TV calibration: [normalOffset, verticalOffset, screenWidth]
+        private static readonly float[,] LargeCalibration = new float[,]
+        {
+            { 0.250f, 0.080f, 2.600f }, // Rotation 0 (North)
+            { 0.250f, 0.080f, 2.600f }, // Rotation 1 (East)
+            { 0.250f, 0.080f, 2.600f }, // Rotation 2 (South)
+            { 0.250f, 0.080f, 2.600f }, // Rotation 3 (West)
+        };
+
         // Per-rotation horizontal flip (true = mirror the texture)
         private static readonly bool[] DefaultFlip = { false, true, false, true };
 
         // Active calibration values
         private float[,] _calibration;
+        private float[,] _calibrationLarge;
         private bool[] _flipHorizontal;
         private int _currentYaw;
         private Vector3 _blockCenter;
         private Vector3 _screenNormal;
+        private bool _isLargeTV;
 
         private const float OffsetStep = 0.01f;
         private const float ScaleStep = 0.02f;
@@ -107,11 +118,15 @@ namespace SevenNes.Integration
             _dimOverlay.Apply();
 
             _calibration = new float[4, 3];
+            _calibrationLarge = new float[4, 3];
             _flipHorizontal = new bool[4];
             for (int i = 0; i < 4; i++)
             {
                 for (int j = 0; j < 3; j++)
+                {
                     _calibration[i, j] = DefaultCalibration[i, j];
+                    _calibrationLarge[i, j] = LargeCalibration[i, j];
+                }
                 _flipHorizontal[i] = DefaultFlip[i];
             }
 
@@ -188,7 +203,7 @@ namespace SevenNes.Integration
             var world = GameManager.Instance?.World;
             if (world != null)
             {
-                string cartridge = CartridgeHelper.FindNearbyCartridge(world, 0, blockPos);
+                string cartridge = CartridgeHelper.FindNearbyCartridge(world, 0, blockPos, _isLargeTV ? 4 : 1);
                 _lastCartridgeName = cartridge;
                 if (cartridge != null)
                     _manager.LoadRomByItemName(cartridge);
@@ -213,7 +228,7 @@ namespace SevenNes.Integration
             var world = GameManager.Instance?.World;
             if (world != null)
             {
-                string cartridge = CartridgeHelper.FindNearbyCartridge(world, 0, blockPos);
+                string cartridge = CartridgeHelper.FindNearbyCartridge(world, 0, blockPos, _isLargeTV ? 4 : 1);
                 _lastCartridgeName = cartridge;
                 if (cartridge != null)
                 {
@@ -256,7 +271,7 @@ namespace SevenNes.Integration
             var world = GameManager.Instance?.World;
             if (world != null)
             {
-                string cartridge = CartridgeHelper.FindNearbyCartridge(world, 0, blockPos);
+                string cartridge = CartridgeHelper.FindNearbyCartridge(world, 0, blockPos, _isLargeTV ? 4 : 1);
                 _lastCartridgeName = cartridge;
                 if (cartridge != null)
                     _manager.LoadRomByItemName(cartridge);
@@ -304,8 +319,42 @@ namespace SevenNes.Integration
             _blockPos = blockPos;
             _blockRotation = rotation;
             _currentYaw = rotation & 0x3;
-            _blockCenter = new Vector3(blockPos.x + 0.5f, blockPos.y + 0.5f, blockPos.z + 0.5f);
             _screenNormal = GetScreenNormal(rotation);
+
+            // Check if this is a large TV variant
+            var world = GameManager.Instance?.World;
+            if (world != null)
+            {
+                var bv = world.GetBlock(blockPos);
+                _isLargeTV = bv.Block != null && bv.Block.GetBlockName() == "nesTVLarge";
+            }
+
+            if (_isLargeTV)
+            {
+                // 3x2x1 multi-block: compute center of the full TV area
+                // The parent block is at one corner; the TV extends 3 wide and 2 tall
+                // Width direction depends on rotation (perpendicular to screen normal)
+                Vector3 widthDir = GetWidthDirection(_currentYaw);
+                _blockCenter = new Vector3(blockPos.x + 0.5f, blockPos.y + 0.5f, blockPos.z + 0.5f)
+                    + widthDir * 1.0f   // center of 3-wide (offset by 1 from parent corner)
+                    + Vector3.up * 0.5f; // center of 2-tall (offset by 0.5 from parent bottom)
+            }
+            else
+            {
+                _blockCenter = new Vector3(blockPos.x + 0.5f, blockPos.y + 0.5f, blockPos.z + 0.5f);
+            }
+        }
+
+        private static Vector3 GetWidthDirection(int yaw)
+        {
+            switch (yaw)
+            {
+                case 0: return new Vector3(1, 0, 0);   // North-facing: width along +X
+                case 1: return new Vector3(0, 0, 1);   // East-facing: width along +Z
+                case 2: return new Vector3(-1, 0, 0);  // South-facing: width along -X
+                case 3: return new Vector3(0, 0, -1);  // West-facing: width along -Z
+                default: return new Vector3(1, 0, 0);
+            }
         }
 
         private bool CheckPowerState()
@@ -385,7 +434,7 @@ namespace SevenNes.Integration
             var world = GameManager.Instance?.World;
             if (world == null) return;
 
-            string currentCartridge = CartridgeHelper.FindNearbyCartridge(world, 0, _blockPos);
+            string currentCartridge = CartridgeHelper.FindNearbyCartridge(world, 0, _blockPos, _isLargeTV ? 4 : 1);
 
             // Cartridge was removed
             if (_lastCartridgeName != null && currentCartridge == null)
@@ -593,6 +642,7 @@ namespace SevenNes.Integration
         private const float _noSignalNormalOffset = 0.250f;
         private const float _noSignalVerticalOffset = 0.060f;
         private const float _noSignalWidth = 1.540f;
+        private const float _noSignalWidthLarge = 2.600f;
 
         private void UpdateQuadTransform()
         {
@@ -600,9 +650,11 @@ namespace SevenNes.Integration
 
             bool showingNoSignal = !_manager.HasLoadedRom;
 
-            float normalOffset = showingNoSignal ? _noSignalNormalOffset : _calibration[_currentYaw, 0];
-            float verticalOffset = showingNoSignal ? _noSignalVerticalOffset : _calibration[_currentYaw, 1];
-            float screenWidth = showingNoSignal ? _noSignalWidth : _calibration[_currentYaw, 2];
+            var cal = _isLargeTV ? _calibrationLarge : _calibration;
+            float normalOffset = showingNoSignal ? _noSignalNormalOffset : cal[_currentYaw, 0];
+            float verticalOffset = showingNoSignal ? _noSignalVerticalOffset : cal[_currentYaw, 1];
+            float noSignalW = _isLargeTV ? _noSignalWidthLarge : _noSignalWidth;
+            float screenWidth = showingNoSignal ? noSignalW : cal[_currentYaw, 2];
 
             Vector3 screenCenter = _blockCenter + _screenNormal * normalOffset + Vector3.up * verticalOffset;
             _screenQuad.transform.position = screenCenter;
