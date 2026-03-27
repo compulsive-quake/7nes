@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.8] - 2026-03-27
+
+### Added
+- Release script (`release.ps1`) that builds the mod into a zip and publishes it as a GitHub release with version tag and changelog notes
+
 ## [1.0.7] - 2026-03-27
 
 ### Changed
