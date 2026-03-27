@@ -8,7 +8,7 @@
   </PropertyGroup>
 
   <PropertyGroup>
-    <SevenDaysToDiePath>D:\SteamLibrary\steamapps\common\7 Days To Die</SevenDaysToDiePath>
+    <SevenDaysToDiePath Condition="'$(SevenDaysToDiePath)' == ''">D:\SteamLibrary\steamapps\common\7 Days To Die</SevenDaysToDiePath>
   </PropertyGroup>
 
   <ItemGroup>
