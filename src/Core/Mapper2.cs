@@ -20,17 +20,16 @@ namespace SevenNes.Core
 
             if (address >= 0x8000 && address <= 0xBFFF)
             {
-                int offset = _bankSelect * 0x4000 + (address & 0x3FFF);
-                if (offset < _cartridge.PrgRom.Length)
-                    return _cartridge.PrgRom[offset];
+                // Switchable bank with modulo wrapping for any ROM size
+                int offset = (_bankSelect % _cartridge.PrgBanks) * 0x4000 + (address & 0x3FFF);
+                return _cartridge.PrgRom[offset];
             }
 
-            if (address >= 0xC000 && address <= 0xFFFF)
+            if (address >= 0xC000)
             {
                 // Last bank fixed
                 int offset = (_cartridge.PrgBanks - 1) * 0x4000 + (address & 0x3FFF);
-                if (offset < _cartridge.PrgRom.Length)
-                    return _cartridge.PrgRom[offset];
+                return _cartridge.PrgRom[offset];
             }
 
             return 0;
@@ -46,7 +45,8 @@ namespace SevenNes.Core
 
             if (address >= 0x8000)
             {
-                _bankSelect = (byte)(value & 0x0F);
+                // Use full byte for bank selection (supports ROMs > 256KB)
+                _bankSelect = value;
             }
         }
 
@@ -75,5 +75,6 @@ namespace SevenNes.Core
         }
 
         public void NotifyScanline() { }
+        public void NotifyCpuCycle() { }
     }
 }

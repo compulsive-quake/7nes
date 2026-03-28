@@ -7,5 +7,9 @@ namespace SevenNes.Core
         byte PpuRead(ushort address);
         void PpuWrite(ushort address, byte value);
         void NotifyScanline();
+        /// <summary>
+        /// Called once per CPU cycle for mappers that use cycle-based IRQ counters (e.g. FME-7).
+        /// </summary>
+        void NotifyCpuCycle();
     }
 }

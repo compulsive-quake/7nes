@@ -11,10 +11,87 @@ namespace SevenNes.Core
         private byte _prgBank;
         private int _writeCount;
 
+        // PRG RAM write protect (bit 4 of PRG bank register)
+        private bool _prgRamEnabled = true;
+
+        // Consecutive-cycle write protection: ignore the first write of RMW instructions
+        // that perform write-back on consecutive cycles. Track by CPU cycle count.
+        private long _lastWriteCycle = -10;
+
+        private int _prgRomLength;
+        private int _chrRomLength;
+
+        // Pre-computed bank offsets for faster reads
+        private int _prgBankOffset0;
+        private int _prgBankOffset1;
+        private int _chrBankOffset0;
+        private int _chrBankOffset1;
+
         public Mapper1(Cartridge cartridge)
         {
             _cartridge = cartridge;
+            _prgRomLength = cartridge.PrgRom.Length;
+            _chrRomLength = (cartridge.ChrRom != null) ? cartridge.ChrRom.Length : 0;
             _control = 0x0C; // default: fix last bank at $C000, 8KB CHR mode
+            UpdateBankOffsets();
+        }
+
+        private void UpdateBankOffsets()
+        {
+            // PRG bank offsets
+            int prgMode = (_control >> 2) & 0x03;
+            int bankIndex = _prgBank & 0x0F;
+
+            switch (prgMode)
+            {
+                case 0:
+                case 1:
+                    // 32KB mode: ignore low bit
+                    int base32 = (bankIndex >> 1) * 0x8000;
+                    _prgBankOffset0 = base32;
+                    _prgBankOffset1 = base32 + 0x4000;
+                    break;
+                case 2:
+                    // Fix first bank at $8000, switch $C000
+                    _prgBankOffset0 = 0;
+                    _prgBankOffset1 = bankIndex * 0x4000;
+                    break;
+                case 3:
+                default:
+                    // Switch $8000, fix last bank at $C000
+                    _prgBankOffset0 = bankIndex * 0x4000;
+                    _prgBankOffset1 = (_cartridge.PrgBanks - 1) * 0x4000;
+                    break;
+            }
+
+            // Wrap offsets safely
+            if (_prgRomLength > 0)
+            {
+                _prgBankOffset0 %= _prgRomLength;
+                _prgBankOffset1 %= _prgRomLength;
+            }
+
+            // CHR bank offsets
+            bool chrMode = (_control & 0x10) != 0;
+            if (!chrMode)
+            {
+                // 8KB mode: use chrBank0 with bit 0 cleared
+                int chrBase = (_chrBank0 >> 1) * 0x2000;
+                _chrBankOffset0 = chrBase;
+                _chrBankOffset1 = chrBase + 0x1000;
+            }
+            else
+            {
+                // Two 4KB banks
+                _chrBankOffset0 = _chrBank0 * 0x1000;
+                _chrBankOffset1 = _chrBank1 * 0x1000;
+            }
+
+            if (_chrRomLength > 0)
+            {
+                _chrBankOffset0 %= _chrRomLength;
+                _chrBankOffset1 %= _chrRomLength;
+            }
         }
 
         public byte CpuRead(ushort address)
@@ -26,35 +103,13 @@ namespace SevenNes.Core
 
             if (address >= 0x8000)
             {
-                int prgMode = (_control >> 2) & 0x03;
-                int bankIndex = _prgBank & 0x0F;
                 int offset;
+                if (address < 0xC000)
+                    offset = _prgBankOffset0 + (address & 0x3FFF);
+                else
+                    offset = _prgBankOffset1 + (address & 0x3FFF);
 
-                switch (prgMode)
-                {
-                    case 0:
-                    case 1:
-                        // 32KB mode: ignore low bit of bank number
-                        offset = (bankIndex & 0xFE) * 0x4000 + (address & 0x7FFF);
-                        break;
-                    case 2:
-                        // Fix first bank at $8000, switch $C000
-                        if (address < 0xC000)
-                            offset = address & 0x3FFF;
-                        else
-                            offset = bankIndex * 0x4000 + (address & 0x3FFF);
-                        break;
-                    case 3:
-                    default:
-                        // Switch $8000, fix last bank at $C000
-                        if (address < 0xC000)
-                            offset = bankIndex * 0x4000 + (address & 0x3FFF);
-                        else
-                            offset = (_cartridge.PrgBanks - 1) * 0x4000 + (address & 0x3FFF);
-                        break;
-                }
-
-                if (offset < _cartridge.PrgRom.Length)
+                if (offset < _prgRomLength)
                     return _cartridge.PrgRom[offset];
             }
 
@@ -65,18 +120,32 @@ namespace SevenNes.Core
         {
             if (address >= 0x6000 && address <= 0x7FFF)
             {
-                _cartridge.PrgRam[address & 0x1FFF] = value;
+                if (_prgRamEnabled)
+                    _cartridge.PrgRam[address & 0x1FFF] = value;
                 return;
             }
 
             if (address >= 0x8000)
             {
+                // Consecutive-cycle write protection: RMW instructions like INC/DEC/ASL/LSR/ROL/ROR
+                // first write back the original value, then write the modified value.
+                // Real MMC1 ignores the first write. We detect this by checking if this write
+                // is on the same or immediately consecutive CPU cycle as the last one.
+                long currentCycle = GetCpuCycles();
+                if (currentCycle > 0 && currentCycle - _lastWriteCycle <= 1)
+                {
+                    _lastWriteCycle = currentCycle;
+                    return;
+                }
+                _lastWriteCycle = currentCycle;
+
                 if ((value & 0x80) != 0)
                 {
                     // Reset shift register
                     _shiftRegister = 0x10;
                     _writeCount = 0;
                     _control |= 0x0C;
+                    UpdateBankOffsets();
                     return;
                 }
 
@@ -87,12 +156,12 @@ namespace SevenNes.Core
 
                 if (_writeCount == 5)
                 {
+                    // Address is incompletely decoded — only bits 13-14 matter
                     int reg = (address >> 13) & 0x03;
                     switch (reg)
                     {
                         case 0:
                             _control = _shiftRegister;
-                            // Update mirror mode from control bits 0-1
                             switch (_control & 0x03)
                             {
                                 case 0: _cartridge.MirrorMode = 2; break; // single screen lower
@@ -109,39 +178,36 @@ namespace SevenNes.Core
                             break;
                         case 3:
                             _prgBank = _shiftRegister;
+                            _prgRamEnabled = (_prgBank & 0x10) == 0;
                             break;
                     }
 
                     _shiftRegister = 0x10;
                     _writeCount = 0;
+                    UpdateBankOffsets();
                 }
             }
+        }
+
+        private long GetCpuCycles()
+        {
+            // Access CPU cycle counter for consecutive-write detection
+            return _cartridge.CpuCycleCount;
         }
 
         public byte PpuRead(ushort address)
         {
             if (address <= 0x1FFF)
             {
-                bool chrMode = (_control & 0x10) != 0;
                 int offset;
-
-                if (!chrMode)
-                {
-                    // 8KB mode
-                    offset = (_chrBank0 & 0x1E) * 0x1000 + (address & 0x1FFF);
-                }
+                if (address < 0x1000)
+                    offset = _chrBankOffset0 + (address & 0x0FFF);
                 else
-                {
-                    // Two 4KB banks
-                    if (address < 0x1000)
-                        offset = _chrBank0 * 0x1000 + (address & 0x0FFF);
-                    else
-                        offset = _chrBank1 * 0x1000 + (address & 0x0FFF);
-                }
+                    offset = _chrBankOffset1 + (address & 0x0FFF);
 
-                if (_cartridge.ChrRom != null && _cartridge.ChrRom.Length > 0)
+                if (_chrRomLength > 0)
                 {
-                    if (offset < _cartridge.ChrRom.Length)
+                    if (offset < _chrRomLength)
                         return _cartridge.ChrRom[offset];
                     return 0;
                 }
@@ -158,22 +224,13 @@ namespace SevenNes.Core
         {
             if (address <= 0x1FFF)
             {
-                if (_cartridge.ChrRom == null || _cartridge.ChrRom.Length == 0)
+                if (_chrRomLength == 0)
                 {
-                    bool chrMode = (_control & 0x10) != 0;
                     int offset;
-
-                    if (!chrMode)
-                    {
-                        offset = (_chrBank0 & 0x1E) * 0x1000 + (address & 0x1FFF);
-                    }
+                    if (address < 0x1000)
+                        offset = _chrBankOffset0 + (address & 0x0FFF);
                     else
-                    {
-                        if (address < 0x1000)
-                            offset = _chrBank0 * 0x1000 + (address & 0x0FFF);
-                        else
-                            offset = _chrBank1 * 0x1000 + (address & 0x0FFF);
-                    }
+                        offset = _chrBankOffset1 + (address & 0x0FFF);
 
                     _cartridge.ChrRam[offset & 0x1FFF] = value;
                 }
@@ -181,5 +238,7 @@ namespace SevenNes.Core
         }
 
         public void NotifyScanline() { }
+
+        public void NotifyCpuCycle() { }
     }
 }

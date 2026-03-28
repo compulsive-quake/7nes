@@ -119,5 +119,6 @@ namespace SevenNes.Core
         }
 
         public void NotifyScanline() { }
+        public void NotifyCpuCycle() { }
     }
 }

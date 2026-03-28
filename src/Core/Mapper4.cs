@@ -14,23 +14,29 @@ namespace SevenNes.Core
         private bool _chrInvert;  // false = 2KB at $0000, true = 2KB at $1000
         private int[] _registers = new int[8];
 
-        // IRQ
+        // IRQ — simple counter model matching proven reference implementation:
+        // counter==0 → reload from latch; counter>0 → decrement, fire on transition to zero.
         private byte _irqLatch;
         private byte _irqCounter;
         private bool _irqEnabled;
         private bool _irqReload;
 
+        // PRG RAM write protect
+        private bool _prgRamEnabled = true;
+
         private int _prgBankCount;
         private int _chrBankCount;
+        private int _prgRomLength;
+        private int _chrRomLength;
 
         public Mapper4(Cartridge cartridge, bool isMapper206)
         {
             _cartridge = cartridge;
             _isMapper206 = isMapper206;
-            _prgBankCount = cartridge.PrgRom.Length / 0x2000; // 8KB banks
-            _chrBankCount = (cartridge.ChrRom != null && cartridge.ChrRom.Length > 0)
-                ? cartridge.ChrRom.Length / 0x0400 // 1KB banks
-                : 0;
+            _prgRomLength = cartridge.PrgRom.Length;
+            _chrRomLength = (cartridge.ChrRom != null) ? cartridge.ChrRom.Length : 0;
+            _prgBankCount = _prgRomLength / 0x2000; // 8KB banks
+            _chrBankCount = _chrRomLength > 0 ? _chrRomLength / 0x0400 : 0; // 1KB banks
 
             // Default register values
             _registers[6] = 0;
@@ -46,35 +52,49 @@ namespace SevenNes.Core
 
             if (address >= 0x8000)
             {
-                int bank = GetPrgBank(address);
-                int offset = bank * 0x2000 + (address & 0x1FFF);
-                if (offset < _cartridge.PrgRom.Length)
+                int offset = GetPrgOffset(address);
+                if (offset < _prgRomLength)
                     return _cartridge.PrgRom[offset];
             }
 
             return 0;
         }
 
-        private int GetPrgBank(ushort address)
+        private int GetPrgOffset(ushort address)
         {
-            int lastBank = _prgBankCount - 1;
-            int secondLast = _prgBankCount - 2;
+            int slot = (address - 0x8000) >> 13; // 0-3
+            int bankOffset;
 
-            if (address >= 0x8000 && address <= 0x9FFF)
-                return _prgMode ? secondLast : (_registers[6] & (_prgBankCount - 1));
-            if (address >= 0xA000 && address <= 0xBFFF)
-                return _registers[7] & (_prgBankCount - 1);
-            if (address >= 0xC000 && address <= 0xDFFF)
-                return _prgMode ? (_registers[6] & (_prgBankCount - 1)) : secondLast;
-            // $E000-$FFFF
-            return lastBank;
+            switch (slot)
+            {
+                case 0:
+                    bankOffset = _prgMode
+                        ? (_prgRomLength - 0x4000) // second-to-last 8KB bank
+                        : (_registers[6] * 0x2000);
+                    break;
+                case 1:
+                    bankOffset = _registers[7] * 0x2000;
+                    break;
+                case 2:
+                    bankOffset = _prgMode
+                        ? (_registers[6] * 0x2000)
+                        : (_prgRomLength - 0x4000); // second-to-last 8KB bank
+                    break;
+                default: // case 3
+                    bankOffset = _prgRomLength - 0x2000; // last 8KB bank
+                    break;
+            }
+
+            // Use modulo for safe wrapping (handles non-power-of-2 ROM sizes)
+            return (bankOffset % _prgRomLength) + (address & 0x1FFF);
         }
 
         public void CpuWrite(ushort address, byte value)
         {
             if (address >= 0x6000 && address <= 0x7FFF)
             {
-                _cartridge.PrgRam[address & 0x1FFF] = value;
+                if (_prgRamEnabled)
+                    _cartridge.PrgRam[address & 0x1FFF] = value;
                 return;
             }
 
@@ -82,7 +102,7 @@ namespace SevenNes.Core
 
             bool isEven = (address & 1) == 0;
 
-            if (address >= 0x8000 && address <= 0x9FFF)
+            if (address < 0xA000) // $8000-$9FFF
             {
                 if (isEven)
                 {
@@ -100,7 +120,7 @@ namespace SevenNes.Core
                     _registers[_bankSelect] = value;
                 }
             }
-            else if (address >= 0xA000 && address <= 0xBFFF)
+            else if (address < 0xC000) // $A000-$BFFF
             {
                 if (!_isMapper206)
                 {
@@ -109,10 +129,14 @@ namespace SevenNes.Core
                         // Mirroring
                         _cartridge.MirrorMode = (value & 1) == 0 ? 1 : 0; // 0=vertical, 1=horizontal
                     }
-                    // Odd: PRG RAM protect (ignored for simplicity)
+                    else
+                    {
+                        // PRG RAM protect: bit 7 = enabled, bit 6 = write protect
+                        _prgRamEnabled = (value & 0xC0) == 0x80;
+                    }
                 }
             }
-            else if (address >= 0xC000 && address <= 0xDFFF)
+            else if (address < 0xE000) // $C000-$DFFF
             {
                 if (!_isMapper206)
                 {
@@ -122,8 +146,9 @@ namespace SevenNes.Core
                     }
                     else
                     {
+                        // Reload: clear counter so it reloads from latch on next scanline clock
                         _irqReload = true;
-                        _irqCounter = 0; // Clear counter immediately; reloads from latch on next scanline clock
+                        _irqCounter = 0;
                     }
                 }
             }
@@ -148,13 +173,10 @@ namespace SevenNes.Core
         {
             if (address <= 0x1FFF)
             {
-                int bank = GetChrBank(address);
-                if (_cartridge.ChrRom != null && _cartridge.ChrRom.Length > 0)
+                if (_chrRomLength > 0)
                 {
-                    int offset = bank * 0x0400 + (address & 0x03FF);
-                    if (offset < _cartridge.ChrRom.Length)
-                        return _cartridge.ChrRom[offset];
-                    return 0;
+                    int offset = GetChrOffset(address);
+                    return _cartridge.ChrRom[offset];
                 }
                 else
                 {
@@ -164,49 +186,49 @@ namespace SevenNes.Core
             return 0;
         }
 
-        private int GetChrBank(ushort address)
+        private int GetChrOffset(ushort address)
         {
-            if (_chrBankCount == 0) return 0;
-
-            int slot = address / 0x0400; // 0-7 (1KB slots)
+            int slot = address >> 10; // 0-7 (1KB slots)
+            int bankNum;
 
             if (_chrInvert)
             {
                 switch (slot)
                 {
-                    case 0: return _registers[2] & (_chrBankCount - 1);
-                    case 1: return _registers[3] & (_chrBankCount - 1);
-                    case 2: return _registers[4] & (_chrBankCount - 1);
-                    case 3: return _registers[5] & (_chrBankCount - 1);
-                    case 4: return (_registers[0] & 0xFE) & (_chrBankCount - 1);
-                    case 5: return ((_registers[0] & 0xFE) + 1) & (_chrBankCount - 1);
-                    case 6: return (_registers[1] & 0xFE) & (_chrBankCount - 1);
-                    case 7: return ((_registers[1] & 0xFE) + 1) & (_chrBankCount - 1);
+                    case 0: bankNum = _registers[2]; break;
+                    case 1: bankNum = _registers[3]; break;
+                    case 2: bankNum = _registers[4]; break;
+                    case 3: bankNum = _registers[5]; break;
+                    case 4: bankNum = _registers[0] & 0xFE; break;
+                    case 5: bankNum = (_registers[0] & 0xFE) | 0x01; break;
+                    case 6: bankNum = _registers[1] & 0xFE; break;
+                    default: bankNum = (_registers[1] & 0xFE) | 0x01; break;
                 }
             }
             else
             {
                 switch (slot)
                 {
-                    case 0: return (_registers[0] & 0xFE) & (_chrBankCount - 1);
-                    case 1: return ((_registers[0] & 0xFE) + 1) & (_chrBankCount - 1);
-                    case 2: return (_registers[1] & 0xFE) & (_chrBankCount - 1);
-                    case 3: return ((_registers[1] & 0xFE) + 1) & (_chrBankCount - 1);
-                    case 4: return _registers[2] & (_chrBankCount - 1);
-                    case 5: return _registers[3] & (_chrBankCount - 1);
-                    case 6: return _registers[4] & (_chrBankCount - 1);
-                    case 7: return _registers[5] & (_chrBankCount - 1);
+                    case 0: bankNum = _registers[0] & 0xFE; break;
+                    case 1: bankNum = (_registers[0] & 0xFE) | 0x01; break;
+                    case 2: bankNum = _registers[1] & 0xFE; break;
+                    case 3: bankNum = (_registers[1] & 0xFE) | 0x01; break;
+                    case 4: bankNum = _registers[2]; break;
+                    case 5: bankNum = _registers[3]; break;
+                    case 6: bankNum = _registers[4]; break;
+                    default: bankNum = _registers[5]; break;
                 }
             }
 
-            return 0;
+            // Use modulo for safe wrapping (handles any ROM size)
+            return (bankNum * 0x0400 % _chrRomLength) + (address & 0x03FF);
         }
 
         public void PpuWrite(ushort address, byte value)
         {
             if (address <= 0x1FFF)
             {
-                if (_cartridge.ChrRom == null || _cartridge.ChrRom.Length == 0)
+                if (_chrRomLength == 0)
                 {
                     _cartridge.ChrRam[address & 0x1FFF] = value;
                 }
@@ -217,27 +239,22 @@ namespace SevenNes.Core
         {
             if (_isMapper206) return;
 
-            byte oldCounter = _irqCounter;
-            bool wasReload = _irqReload;
-
             if (_irqCounter == 0 || _irqReload)
             {
                 _irqCounter = _irqLatch;
+                _irqReload = false;
             }
             else
             {
                 _irqCounter--;
             }
 
-            // Fire IRQ only on transition to zero: either decremented from non-zero,
-            // or reloaded to zero via explicit reload flag. Prevents re-firing every
-            // scanline when latch is 0 and no new reload was requested.
-            if (_irqCounter == 0 && _irqEnabled && (oldCounter != 0 || wasReload))
+            if (_irqCounter == 0 && _irqEnabled)
             {
                 _cartridge.IrqPending = true;
             }
-
-            _irqReload = false;
         }
+
+        public void NotifyCpuCycle() { }
     }
 }

@@ -15,6 +15,7 @@ namespace SevenNes.Core
         public int ChrBanks;
         public IMapper Mapper;
         public bool IrqPending;
+        public long CpuCycleCount;
 
         public void Load(byte[] romData)
         {

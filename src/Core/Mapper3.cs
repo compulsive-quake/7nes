@@ -47,7 +47,8 @@ namespace SevenNes.Core
 
             if (address >= 0x8000)
             {
-                _bankSelect = (byte)(value & 0x03);
+                // Full byte used for bank selection; modulo applied on read
+                _bankSelect = value;
             }
         }
 
@@ -55,16 +56,15 @@ namespace SevenNes.Core
         {
             if (address <= 0x1FFF)
             {
-                int offset = _bankSelect * 0x2000 + (address & 0x1FFF);
                 if (_cartridge.ChrRom != null && _cartridge.ChrRom.Length > 0)
                 {
-                    if (offset < _cartridge.ChrRom.Length)
-                        return _cartridge.ChrRom[offset];
-                    return 0;
+                    int chrBanks = _cartridge.ChrRom.Length / 0x2000;
+                    int offset = (_bankSelect % chrBanks) * 0x2000 + (address & 0x1FFF);
+                    return _cartridge.ChrRom[offset];
                 }
                 else
                 {
-                    return _cartridge.ChrRam[offset & 0x1FFF];
+                    return _cartridge.ChrRam[address & 0x1FFF];
                 }
             }
 
@@ -84,5 +84,6 @@ namespace SevenNes.Core
         }
 
         public void NotifyScanline() { }
+        public void NotifyCpuCycle() { }
     }
 }

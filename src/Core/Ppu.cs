@@ -354,17 +354,16 @@ namespace SevenNes.Core
             bool visibleScanline = Scanline >= 0 && Scanline <= 239;
             bool preRenderScanline = Scanline == 261;
 
-            // --- Visible scanlines (0-239): per-pixel rendering ---
-            if (visibleScanline && rendering)
+            if (rendering && (visibleScanline || preRenderScanline))
             {
-                // Sprite evaluation at dot 0
-                if (Cycle == 0)
+                // --- Sprite evaluation at dot 0 (visible scanlines only) ---
+                if (visibleScanline && Cycle == 0)
                 {
                     EvaluateSpriteBuffers(Scanline, _sprPixels, _sprPriority, _sprIsSprite0);
                 }
 
-                // Pixel output at dots 1-256
-                if (Cycle >= 1 && Cycle <= 256)
+                // --- Pixel output at dots 1-256 (visible scanlines only) ---
+                if (visibleScanline && Cycle >= 1 && Cycle <= 256)
                 {
                     RenderPixel(Scanline, Cycle - 1);
                 }
@@ -380,38 +379,19 @@ namespace SevenNes.Core
                 {
                     _v = (ushort)((_v & 0x7BE0) | (_t & 0x041F));
                 }
+
+                // Pre-render: copy vertical bits from t to v at dots 280-304
+                if (preRenderScanline && Cycle >= 280 && Cycle <= 304)
+                {
+                    _v = (ushort)((_v & 0x041F) | (_t & 0x7BE0));
+                }
             }
 
-            // --- Pre-render scanline (261) ---
-            if (preRenderScanline)
+            // --- Clear flags on pre-render scanline (always, even if rendering disabled) ---
+            if (preRenderScanline && Cycle == 1)
             {
-                if (Cycle == 1)
-                {
-                    // Clear vblank, sprite 0 hit, overflow
-                    _status &= 0x1F;
-                    _nmiTriggered = false;
-                }
-
-                if (rendering)
-                {
-                    // Increment fine Y at dot 256 (overwritten by vert copy, but matches hardware)
-                    if (Cycle == 256)
-                    {
-                        IncrementScrollY();
-                    }
-
-                    // Copy horizontal bits from t to v at dot 257
-                    if (Cycle == 257)
-                    {
-                        _v = (ushort)((_v & 0x7BE0) | (_t & 0x041F));
-                    }
-
-                    // Copy vertical bits from t to v at dots 280-304
-                    if (Cycle >= 280 && Cycle <= 304)
-                    {
-                        _v = (ushort)((_v & 0x041F) | (_t & 0x7BE0));
-                    }
-                }
+                _status &= 0x1F;
+                _nmiTriggered = false;
             }
 
             // --- Notify mapper of scanline for IRQ counting (at cycle 260) ---
@@ -522,6 +502,7 @@ namespace SevenNes.Core
             int fineY = (_v >> 12) & 0x07;
             ushort patternBase = (ushort)((_ctrl & 0x10) != 0 ? 0x1000 : 0x0000);
 
+            // Calculate effective tile position from _v's starting scroll + pixel offset
             int effectiveCoarseX = (_v & 0x001F) + (px + _x) / 8;
             int nametableX = (_v >> 10) & 0x01;
 
@@ -539,15 +520,11 @@ namespace SevenNes.Core
             byte tileIndex = PpuRead(ntAddr);
 
             // Attribute byte
-            int attrX = effectiveCoarseX / 4;
-            int attrY = coarseY / 4;
-            ushort attrAddr = (ushort)(0x23C0 | (nametableY << 11) | (nametableX << 10) | (attrY << 3) | attrX);
+            ushort attrAddr = (ushort)(0x23C0 | (nametableY << 11) | (nametableX << 10) | ((coarseY >> 2) << 3) | (effectiveCoarseX >> 2));
             byte attrByte = PpuRead(attrAddr);
 
             // Determine which 2-bit palette to use from the attribute byte
-            int palShift = 0;
-            if ((effectiveCoarseX & 0x02) != 0) palShift += 2;
-            if ((coarseY & 0x02) != 0) palShift += 4;
+            int palShift = ((effectiveCoarseX & 0x02) != 0 ? 2 : 0) + ((coarseY & 0x02) != 0 ? 4 : 0);
             int palNum = (attrByte >> palShift) & 0x03;
 
             // Get pattern data
@@ -645,6 +622,19 @@ namespace SevenNes.Core
                     priBuf[pixX] = (byte)priority;
                     sp0Buf[pixX] = (i == 0);
                 }
+            }
+        }
+
+        private void IncrementScrollX()
+        {
+            if ((_v & 0x001F) == 31)
+            {
+                _v &= unchecked((ushort)~0x001F); // Clear coarse X
+                _v ^= 0x0400;                     // Switch horizontal nametable
+            }
+            else
+            {
+                _v++;
             }
         }
 

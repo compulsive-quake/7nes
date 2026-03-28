@@ -57,6 +57,8 @@ namespace SevenNes.Core
                 if (_dmaCyclesRemaining > 0)
                 {
                     _dmaCyclesRemaining--;
+                    Cartridge.CpuCycleCount++;
+                    Cartridge.Mapper.NotifyCpuCycle();
                     Apu.Step();
                     // 3 PPU cycles per CPU cycle
                     Ppu.Step();
@@ -70,6 +72,8 @@ namespace SevenNes.Core
                     int cpuCycles = Cpu.Step();
                     for (int c = 0; c < cpuCycles; c++)
                     {
+                        Cartridge.CpuCycleCount++;
+                        Cartridge.Mapper.NotifyCpuCycle();
                         Apu.Step();
                         Ppu.Step();
                         Ppu.Step();

@@ -142,18 +142,16 @@ namespace SevenNes.Core
             }
         }
 
-        public void NotifyScanline()
+        public void NotifyScanline() { }
+
+        public void NotifyCpuCycle()
         {
             if (!_irqCounterEnabled) return;
 
-            if (_irqCounter == 0)
+            _irqCounter--;
+            if (_irqCounter == 0xFFFF && _irqEnabled) // Wrapped past zero
             {
-                if (_irqEnabled)
-                    _cartridge.IrqPending = true;
-            }
-            else
-            {
-                _irqCounter--;
+                _cartridge.IrqPending = true;
             }
         }
     }
